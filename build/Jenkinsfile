@@ -1,0 +1,20 @@
+@Library('jenkins-pipeline-lib')
+import blink.jenkins.utils.*
+import blink.jenkins.*
+import blink.jenkins.ci.*
+
+node ("ci") {
+
+  def pipeline = new PluginPipeline(this)
+  pipeline.projectName = "blink-openapi-sdk"
+  pipeline.mainBranchName = "master"
+  pipeline.submodulesUpdate = true
+  pipeline.dockerImageName = "blink-openapi-sdk"
+  pipeline.isMultiImage = false
+  pipeline.runUnitTests = false
+  pipeline.pushImage = false
+  pipeline.tagPrefix = "v"
+
+  pipeline.run()
+
+}
