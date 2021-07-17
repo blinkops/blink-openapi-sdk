@@ -91,7 +91,7 @@ func LoadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 	}
 }
 
-func NewOpenApiPlugin(name string, provider string, tags []string, connections map[string]connections.Connection, openApiFile string) (*openApiPlugin, error) {
+func NewOpenApiPlugin(name string, provider string, tags []string, connectionTypes map[string]connections.Connection, openApiFile string) (*openApiPlugin, error) {
 	var actions []plugin.Action
 
 	openApi, err := LoadOpenApi(openApiFile)
@@ -164,7 +164,7 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connections m
 			Name:        name,
 			Description: openApi.Info.Description,
 			Tags:        tags,
-			Connections: connections,
+			Connections: connectionTypes,
 			Provider:    provider,
 		},
 		openApiFile: openApiFile,
