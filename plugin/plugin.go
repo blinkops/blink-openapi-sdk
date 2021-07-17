@@ -79,7 +79,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	return &plugin.ExecuteActionResponse{ErrorCode: int64(response.StatusCode), Result: result}, nil
 }
 
-func LoadOpenApi(filePath string) (openApi *openapi3.T, err error) {
+func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
 	u, err := url.Parse(filePath)
@@ -94,7 +94,7 @@ func LoadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 func NewOpenApiPlugin(name string, provider string, tags []string, connectionTypes map[string]connections.Connection, openApiFile string) (*openApiPlugin, error) {
 	var actions []plugin.Action
 
-	openApi, err := LoadOpenApi(openApiFile)
+	openApi, err := loadOpenApi(openApiFile)
 
 	if err != nil {
 		return nil, err
