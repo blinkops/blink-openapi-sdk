@@ -1,2 +1,2 @@
 # blink-openapi-sdk
-Blink OpenApi Plugin SDK
+Blink OpenApi integration SDK
