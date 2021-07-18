@@ -7,7 +7,7 @@ import (
 	"github.com/blinkops/blink-sdk/plugin/connections"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -23,6 +23,9 @@ const (
 	paramPrefix        = "{"
 	paramSuffix        = "}"
 	requestUrlKey      = "REQUEST_URL"
+	arrayDelimiter     = ","
+	contentTypeHeader  = "Content-Type"
+	methodPost         = "POST"
 )
 
 var (
@@ -37,12 +40,12 @@ type openApiPlugin struct {
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
-	logrus.Debug("Handling Describe request!")
+	log.Debug("Handling Describe request!")
 	return p.description
 }
 
 func (p *openApiPlugin) GetActions() []plugin.Action {
-	logrus.Debug("Handling GetActions request!")
+	log.Debug("Handling GetActions request!")
 	return p.actions
 }
 
@@ -244,6 +247,10 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 		return nil, err
 	}
 
+	if operation.method == methodPost {
+		request.Header.Set(contentTypeHeader, requestBodyType)
+	}
+
 	parseHeaderParams(requestParameters, operation, request)
 	parseCookieParams(requestParameters, operation, request)
 
@@ -325,7 +332,13 @@ func buildRequestBody(mapKeys []string, propertySchema *openapi3.Schema, paramVa
 	// Keep recursion going until leaf node is found
 	if len(mapKeys) == 1 {
 		subPropertySchema := getPropertyByName(key, propertySchema)
-		requestBody[mapKeys[len(mapKeys)-1]] = castBodyParamType(paramValue, subPropertySchema.Type)
+
+		if subPropertySchema != nil {
+			requestBody[mapKeys[len(mapKeys)-1]] = castBodyParamType(paramValue, subPropertySchema.Type)
+		} else {
+			log.Errorf("Invalid request body param passed: %s", key)
+		}
+
 	} else {
 		if _, ok := requestBody[key]; !ok {
 			requestBody[key] = map[string]interface{}{}
@@ -351,6 +364,8 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 		} else {
 			return boolValue
 		}
+	case typeArray:
+		return strings.Split(paramValue, arrayDelimiter)
 	default:
 		return paramValue
 	}
