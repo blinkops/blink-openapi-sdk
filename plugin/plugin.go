@@ -22,6 +22,7 @@ const (
 	requestBodyType    = "application/json"
 	paramPrefix        = "{"
 	paramSuffix        = "}"
+	requestUrlKey      = "REQUEST_URL"
 )
 
 var (
@@ -56,7 +57,7 @@ func (p *openApiPlugin) TestCredentials(map[string]connections.ConnectionInstanc
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
 	result := []byte{}
 	client := &http.Client{}
-	openApiRequest, err := p.parseActionRequest(request)
+	openApiRequest, err := p.parseActionRequest(actionContext, request)
 
 	if err != nil {
 		return nil, err
@@ -104,6 +105,7 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 		return nil, errors.New("no server URL provided in OpenApi file")
 	}
 
+	// Set default openApi server
 	openApiServer := openApi.Servers[0]
 	requestUrl = openApiServer.URL
 
@@ -214,7 +216,7 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 	}
 }
 
-func (p *openApiPlugin) parseActionRequest(executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	operation := operationDefinitions[executeActionRequest.Name]
 	requestParameters, err := executeActionRequest.GetParameters()
 
@@ -222,6 +224,7 @@ func (p *openApiPlugin) parseActionRequest(executeActionRequest *plugin.ExecuteA
 		return nil, err
 	}
 
+	requestUrl = p.getRequestUrl(actionContext)
 	requestPath := parsePathParams(requestParameters, operation, operation.path)
 	operationUrl, err := url.Parse(requestUrl + requestPath)
 
@@ -355,7 +358,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 
 // Credentials should be saved as headerName -> value according to the api definition
 func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request) error {
-	securityHeaders, err := actionContext.GetCredentials(p.Describe().Provider)
+	securityHeaders, err := p.getCredentials(actionContext)
 
 	if err != nil {
 		return err
@@ -368,4 +371,31 @@ func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionCon
 	}
 
 	return nil
+}
+
+func (p *openApiPlugin) getRequestUrl(actionContext *plugin.ActionContext) string {
+	connection, err := actionContext.GetCredentials(p.Describe().Provider)
+
+	if err != nil {
+		return requestUrl
+	}
+
+	if explicitRequestUrl, ok := connection[requestUrlKey].(string); ok {
+		return explicitRequestUrl
+	}
+
+	return requestUrl
+}
+
+func (p *openApiPlugin) getCredentials(actionContext *plugin.ActionContext) (map[string]interface{}, error) {
+	connection, err := actionContext.GetCredentials(p.Describe().Provider)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove request url and leave only other authentication headers
+	delete(connection, requestUrlKey)
+
+	return connection, nil
 }
