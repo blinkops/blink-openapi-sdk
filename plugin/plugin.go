@@ -135,7 +135,7 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 
 		for _, pathParam := range operation.allParams() {
 			paramType := pathParam.spec.Schema.Value.Type
-			paramDefault, _ := pathParam.spec.Schema.Value.Default.(string)
+			paramDefault := getParamDefault(pathParam.spec.Schema.Value.Default, paramType)
 			paramPlaceholder := getParamPlaceholder(pathParam.spec.Example, paramType)
 			paramOptions := getParamOptions(pathParam.spec.Schema.Value.Enum)
 
@@ -188,7 +188,7 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 			paramType := bodyProperty.Value.Type
 			paramOptions := getParamOptions(bodyProperty.Value.Enum)
 			paramPlaceholder := getParamPlaceholder(bodyProperty.Value.Example, paramType)
-			paramDefault, _ := bodyProperty.Value.Default.(string)
+			paramDefault := getParamDefault(bodyProperty.Value.Default, paramType)
 			isParamRequired := false
 
 			for _, requiredParam := range schema.Required {
@@ -236,6 +236,29 @@ func getParamPlaceholder(paramExample interface{}, paramType string) string {
 	}
 
 	return paramPlaceholder
+}
+
+func getParamDefault(defaultValue interface{}, paramType string) string {
+	var paramDefault string
+
+	if paramType != typeArray {
+		paramDefault, _ = defaultValue.(string)
+
+		return paramDefault
+	}
+
+	if defaultList, ok := defaultValue.([]interface{}); ok {
+		var defaultStrings []string
+
+		for _, value := range defaultList {
+			valueString, _ := value.(string)
+			defaultStrings = append(defaultStrings, valueString)
+		}
+
+		paramDefault = strings.Join(defaultStrings, arrayDelimiter)
+	}
+
+	return paramDefault
 }
 
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
