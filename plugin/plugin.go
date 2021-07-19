@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
 	"github.com/blinkops/blink-sdk/plugin"
 	"github.com/blinkops/blink-sdk/plugin/connections"
@@ -19,6 +20,7 @@ import (
 var (
 	OperationDefinitions = map[string]*handlers.OperationDefinition{}
 	requestUrl           string
+	MaskData             *mask.Mask
 )
 
 type openApiPlugin struct {
@@ -78,12 +80,22 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 }
 
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
-	operation := OperationDefinitions[executeActionRequest.Name]
-	requestParameters, err := executeActionRequest.GetParameters()
+	actionName := executeActionRequest.Name
+	actionName, err := mask.ReplaceActionAlias(actionName)
+
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	operation := OperationDefinitions[actionName]
+	rawParameters, err := executeActionRequest.GetParameters()
 
 	if err != nil {
 		return nil, err
 	}
+
+	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters, operation)
 
 	requestUrl = p.getRequestUrl(actionContext)
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
@@ -115,10 +127,16 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	return request, nil
 }
 
-func NewOpenApiPlugin(name string, provider string, tags []string, connectionTypes map[string]connections.Connection, openApiFile string) (*openApiPlugin, error) {
+func NewOpenApiPlugin(name string, provider string, tags []string, connectionTypes map[string]connections.Connection, openApiFile string, maskFile string) (*openApiPlugin, error) {
 	var actions []plugin.Action
 
 	openApi, err := loadOpenApi(openApiFile)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = mask.ParseMask(maskFile)
 
 	if err != nil {
 		return nil, err
@@ -143,8 +161,21 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 	}
 
 	for _, operation := range OperationDefinitions {
+		actionName := operation.OperationId
+
+		// Skip masked actions
+		if MaskData != nil {
+			if maskedAction, ok := MaskData.Actions[actionName]; !ok {
+				continue
+			} else {
+				if maskedAction.Alias != "" {
+					actionName = maskedAction.Alias
+				}
+			}
+		}
+
 		action := plugin.Action{
-			Name:        operation.OperationId,
+			Name:        actionName,
 			Description: operation.Summary,
 			Enabled:     true,
 			EntryPoint:  operation.Path,
@@ -152,16 +183,29 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 		}
 
 		for _, pathParam := range operation.AllParams() {
+			paramName := pathParam.ParamName
 			paramType := pathParam.Spec.Schema.Value.Type
 			paramDefault := getParamDefault(pathParam.Spec.Schema.Value.Default, paramType)
 			paramPlaceholder := getParamPlaceholder(pathParam.Spec.Example, paramType)
 			paramOptions := getParamOptions(pathParam.Spec.Schema.Value.Enum, &paramType)
+			isParamRequired := pathParam.Required
 
-			action.Parameters[pathParam.ParamName] = plugin.ActionParameter{
+			// Skip masked params (always show required params with no default value)
+			if MaskData != nil && !(isParamRequired && paramDefault == "") {
+				if maskedParam, ok := MaskData.Actions[actionName].Parameters[paramName]; !ok {
+					continue
+				} else {
+					if maskedParam.Alias != "" {
+						paramName = maskedParam.Alias
+					}
+				}
+			}
+
+			action.Parameters[paramName] = plugin.ActionParameter{
 				Type:        paramType,
 				Description: pathParam.Spec.Description,
 				Placeholder: paramPlaceholder,
-				Required:    pathParam.Required,
+				Required:    isParamRequired,
 				Default:     paramDefault,
 				Options:     paramOptions,
 			}
