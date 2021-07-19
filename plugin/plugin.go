@@ -3,6 +3,8 @@ package plugin
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
 	"github.com/blinkops/blink-sdk/plugin"
 	"github.com/blinkops/blink-sdk/plugin/connections"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -11,29 +13,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
 
-const (
-	typeArray              = "array"
-	typeInteger            = "integer"
-	typeBoolean            = "boolean"
-	typeObject             = "object"
-	typeDropdown           = "dropdown"
-	bodyParamDelimiter     = "."
-	requestBodyType        = "application/json"
-	paramPrefix            = "{"
-	paramSuffix            = "}"
-	requestUrlKey          = "REQUEST_URL"
-	arrayDelimiter         = ","
-	contentTypeHeader      = "Content-Type"
-	methodPost             = "POST"
-	paramPlaceholderPrefix = "Example: "
-)
-
 var (
-	operationDefinitions = map[string]*operationDefinition{}
+	OperationDefinitions = map[string]*handlers.OperationDefinition{}
 	requestUrl           string
 )
 
@@ -93,48 +77,42 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	return &plugin.ExecuteActionResponse{ErrorCode: 0, Result: result}, nil
 }
 
-func buildResponse(response *http.Response) ([]byte, error) {
-	var (
-		responseOutput string
-		responseError  string
-	)
-
-	defer func() {
-		_ = response.Body.Close()
-	}()
-
-	result, err := ioutil.ReadAll(response.Body)
-
-	if response.StatusCode != http.StatusOK {
-		responseError = string(result)
-	} else {
-		responseOutput = string(result)
-	}
-
-	structuredOutput := actionOutput{
-		Output: responseOutput,
-		Error:  responseError,
-	}
-
-	parsedOutput, err := json.Marshal(structuredOutput)
+func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+	operation := OperationDefinitions[executeActionRequest.Name]
+	requestParameters, err := executeActionRequest.GetParameters()
 
 	if err != nil {
 		return nil, err
 	}
 
-	return parsedOutput, nil
-}
+	requestUrl = p.getRequestUrl(actionContext)
+	requestPath := parsePathParams(requestParameters, operation, operation.Path)
+	operationUrl, err := url.Parse(requestUrl + requestPath)
 
-func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
-	loader := openapi3.NewLoader()
-	loader.IsExternalRefsAllowed = true
-	u, err := url.Parse(filePath)
-
-	if err == nil && u.Scheme != "" && u.Host != "" {
-		return loader.LoadFromURI(u)
-	} else {
-		return loader.LoadFromFile(filePath)
+	if err != nil {
+		return nil, err
 	}
+
+	requestBody, err := parseBodyParams(requestParameters, operation)
+
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := http.NewRequest(operation.Method, operationUrl.String(), bytes.NewBuffer(requestBody))
+
+	if err != nil {
+		return nil, err
+	}
+
+	if operation.Method == consts.MethodPost {
+		request.Header.Set(consts.ContentTypeHeader, consts.RequestBodyType)
+	}
+
+	parseHeaderParams(requestParameters, operation, request)
+	parseCookieParams(requestParameters, operation, request)
+
+	return request, nil
 }
 
 func NewOpenApiPlugin(name string, provider string, tags []string, connectionTypes map[string]connections.Connection, openApiFile string) (*openApiPlugin, error) {
@@ -155,43 +133,43 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 	requestUrl = openApiServer.URL
 
 	for urlVariableName, urlVariable := range openApiServer.Variables {
-		requestUrl = strings.ReplaceAll(requestUrl, paramPrefix+urlVariableName+paramSuffix, urlVariable.Default)
+		requestUrl = strings.ReplaceAll(requestUrl, consts.ParamPrefix+urlVariableName+consts.ParamSuffix, urlVariable.Default)
 	}
 
-	err = defineOperations(openApi)
+	err = handlers.DefineOperations(openApi)
 
 	if err != nil {
 		return nil, err
 	}
 
-	for _, operation := range operationDefinitions {
+	for _, operation := range OperationDefinitions {
 		action := plugin.Action{
-			Name:        operation.operationId,
-			Description: operation.summary,
+			Name:        operation.OperationId,
+			Description: operation.Summary,
 			Enabled:     true,
-			EntryPoint:  operation.path,
+			EntryPoint:  operation.Path,
 			Parameters:  map[string]plugin.ActionParameter{},
 		}
 
-		for _, pathParam := range operation.allParams() {
-			paramType := pathParam.spec.Schema.Value.Type
-			paramDefault := getParamDefault(pathParam.spec.Schema.Value.Default, paramType)
-			paramPlaceholder := getParamPlaceholder(pathParam.spec.Example, paramType)
-			paramOptions := getParamOptions(pathParam.spec.Schema.Value.Enum, &paramType)
+		for _, pathParam := range operation.AllParams() {
+			paramType := pathParam.Spec.Schema.Value.Type
+			paramDefault := getParamDefault(pathParam.Spec.Schema.Value.Default, paramType)
+			paramPlaceholder := getParamPlaceholder(pathParam.Spec.Example, paramType)
+			paramOptions := getParamOptions(pathParam.Spec.Schema.Value.Enum, &paramType)
 
-			action.Parameters[pathParam.paramName] = plugin.ActionParameter{
+			action.Parameters[pathParam.ParamName] = plugin.ActionParameter{
 				Type:        paramType,
-				Description: pathParam.spec.Description,
+				Description: pathParam.Spec.Description,
 				Placeholder: paramPlaceholder,
-				Required:    pathParam.required,
+				Required:    pathParam.Required,
 				Default:     paramDefault,
 				Options:     paramOptions,
 			}
 		}
 
-		for _, paramBody := range operation.bodies {
-			if strings.ToLower(paramBody.contentType) == requestBodyType {
-				handleBodyParams(paramBody.schema.oApiSchema, "", &action)
+		for _, paramBody := range operation.Bodies {
+			if strings.ToLower(paramBody.ContentType) == consts.RequestBodyType {
+				handleBodyParams(paramBody.Schema.OApiSchema, "", &action)
 				break
 			}
 		}
@@ -212,13 +190,25 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 	}, nil
 }
 
+func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
+	loader := openapi3.NewLoader()
+	loader.IsExternalRefsAllowed = true
+	u, err := url.Parse(filePath)
+
+	if err == nil && u.Scheme != "" && u.Host != "" {
+		return loader.LoadFromURI(u)
+	} else {
+		return loader.LoadFromFile(filePath)
+	}
+}
+
 func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin.Action) {
 	for propertyName, bodyProperty := range schema.Properties {
 		fullParamPath := propertyName
 
 		// Json params are represented as dot delimited params to allow proper parsing in UI later on
 		if parentPath != "" {
-			fullParamPath = parentPath + bodyParamDelimiter + fullParamPath
+			fullParamPath = parentPath + consts.BodyParamDelimiter + fullParamPath
 		}
 
 		// Keep recursion until leaf node is found
@@ -264,7 +254,7 @@ func getParamOptions(parsedOptions []interface{}, paramType *string) []string {
 	}
 
 	if len(paramOptions) > 0 {
-		*paramType = typeDropdown
+		*paramType = consts.TypeDropdown
 	}
 
 	return paramOptions
@@ -273,9 +263,9 @@ func getParamOptions(parsedOptions []interface{}, paramType *string) []string {
 func getParamPlaceholder(paramExample interface{}, paramType string) string {
 	paramPlaceholder, _ := paramExample.(string)
 
-	if paramType != typeObject {
+	if paramType != consts.TypeObject {
 		if paramPlaceholder != "" {
-			return paramPlaceholderPrefix + paramPlaceholder
+			return consts.ParamPlaceholderPrefix + paramPlaceholder
 		}
 	}
 
@@ -285,7 +275,7 @@ func getParamPlaceholder(paramExample interface{}, paramType string) string {
 func getParamDefault(defaultValue interface{}, paramType string) string {
 	var paramDefault string
 
-	if paramType != typeArray {
+	if paramType != consts.TypeArray {
 		paramDefault, _ = defaultValue.(string)
 
 		return paramDefault
@@ -299,204 +289,40 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 			defaultStrings = append(defaultStrings, valueString)
 		}
 
-		paramDefault = strings.Join(defaultStrings, arrayDelimiter)
+		paramDefault = strings.Join(defaultStrings, consts.ArrayDelimiter)
 	}
 
 	return paramDefault
 }
 
-func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
-	operation := operationDefinitions[executeActionRequest.Name]
-	requestParameters, err := executeActionRequest.GetParameters()
+func buildResponse(response *http.Response) ([]byte, error) {
+	var (
+		responseOutput string
+		responseError  string
+	)
 
-	if err != nil {
-		return nil, err
-	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
 
-	requestUrl = p.getRequestUrl(actionContext)
-	requestPath := parsePathParams(requestParameters, operation, operation.path)
-	operationUrl, err := url.Parse(requestUrl + requestPath)
+	result, err := ioutil.ReadAll(response.Body)
 
-	if err != nil {
-		return nil, err
-	}
-
-	requestBody, err := parseBodyParams(requestParameters, operation)
-
-	if err != nil {
-		return nil, err
-	}
-
-	request, err := http.NewRequest(operation.method, operationUrl.String(), bytes.NewBuffer(requestBody))
-
-	if err != nil {
-		return nil, err
-	}
-
-	if operation.method == methodPost {
-		request.Header.Set(contentTypeHeader, requestBodyType)
-	}
-
-	parseHeaderParams(requestParameters, operation, request)
-	parseCookieParams(requestParameters, operation, request)
-
-	return request, nil
-}
-
-func parseCookieParams(requestParameters map[string]string, operation *operationDefinition, request *http.Request) {
-	for paramName, paramValue := range requestParameters {
-		for _, cookieParam := range operation.cookieParams {
-			if paramName == cookieParam.paramName {
-				cookie := &http.Cookie{
-					Name:  paramName,
-					Value: paramValue,
-				}
-
-				request.AddCookie(cookie)
-			}
-		}
-	}
-}
-
-func parseHeaderParams(requestParameters map[string]string, operation *operationDefinition, request *http.Request) {
-	for paramName, paramValue := range requestParameters {
-		for _, headerParam := range operation.headerParams {
-			if paramName == headerParam.paramName {
-				request.Header.Set(paramName, paramValue)
-			}
-		}
-	}
-}
-
-func parsePathParams(requestParameters map[string]string, operation *operationDefinition, path string) string {
-	requestPath := path
-
-	for paramName, paramValue := range requestParameters {
-		for _, pathParam := range operation.pathParams {
-			if paramName == pathParam.paramName {
-				requestPath = strings.ReplaceAll(path, paramPrefix+paramName+paramSuffix, paramValue)
-			}
-		}
-	}
-
-	return requestPath
-}
-
-func parseBodyParams(requestParameters map[string]string, operation *operationDefinition) ([]byte, error) {
-	requestBody := map[string]interface{}{}
-	operationBody := &requestBodyDefinition{}
-
-	// Looking for a json type body schema
-	for _, paramBody := range operation.bodies {
-		if strings.ToLower(paramBody.contentType) == requestBodyType {
-			operationBody = &paramBody
-			break
-		}
-	}
-
-	// Add "." delimited params as request body
-	for paramName, paramValue := range requestParameters {
-		if strings.Contains(paramName, bodyParamDelimiter) {
-			mapKeys := strings.Split(paramName, bodyParamDelimiter)
-			buildRequestBody(mapKeys, operationBody.schema.oApiSchema, paramValue, requestBody)
-		}
-	}
-
-	marshaledBody, err := json.Marshal(requestBody)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return marshaledBody, nil
-}
-
-// Build nested json request body from "." delimited parameters
-func buildRequestBody(mapKeys []string, propertySchema *openapi3.Schema, paramValue string, requestBody map[string]interface{}) {
-	key := mapKeys[0]
-
-	// Keep recursion going until leaf node is found
-	if len(mapKeys) == 1 {
-		subPropertySchema := getPropertyByName(key, propertySchema)
-
-		if subPropertySchema != nil {
-			requestBody[mapKeys[len(mapKeys)-1]] = castBodyParamType(paramValue, subPropertySchema.Type)
-		} else {
-			log.Errorf("Invalid request body param passed: %s", key)
-		}
-
+	if response.StatusCode != http.StatusOK {
+		responseError = string(result)
 	} else {
-		if _, ok := requestBody[key]; !ok {
-			requestBody[key] = map[string]interface{}{}
-		}
-
-		subPropertySchema := getPropertyByName(key, propertySchema)
-		buildRequestBody(mapKeys[1:], subPropertySchema, paramValue, requestBody[key].(map[string]interface{}))
-	}
-}
-
-// Cast proper parameter types when building json request body
-func castBodyParamType(paramValue string, paramType string) interface{} {
-	switch paramType {
-	case typeInteger:
-		if intValue, err := strconv.Atoi(paramValue); err != nil {
-			return paramValue
-		} else {
-			return intValue
-		}
-	case typeBoolean:
-		if boolValue, err := strconv.ParseBool(paramValue); err != nil {
-			return paramValue
-		} else {
-			return boolValue
-		}
-	case typeArray:
-		return strings.Split(paramValue, arrayDelimiter)
-	default:
-		return paramValue
-	}
-}
-
-// Credentials should be saved as headerName -> value according to the api definition
-func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request) error {
-	securityHeaders, err := p.getCredentials(actionContext)
-
-	if err != nil {
-		return err
+		responseOutput = string(result)
 	}
 
-	for header, headerValue := range securityHeaders {
-		if headerValueString, ok := headerValue.(string); ok {
-			request.Header.Set(strings.ToUpper(header), headerValueString)
-		}
+	structuredOutput := actionOutput{
+		Output: responseOutput,
+		Error:  responseError,
 	}
 
-	return nil
-}
-
-func (p *openApiPlugin) getRequestUrl(actionContext *plugin.ActionContext) string {
-	connection, err := actionContext.GetCredentials(p.Describe().Provider)
-
-	if err != nil {
-		return requestUrl
-	}
-
-	if explicitRequestUrl, ok := connection[requestUrlKey].(string); ok {
-		return explicitRequestUrl
-	}
-
-	return requestUrl
-}
-
-func (p *openApiPlugin) getCredentials(actionContext *plugin.ActionContext) (map[string]interface{}, error) {
-	connection, err := actionContext.GetCredentials(p.Describe().Provider)
+	parsedOutput, err := json.Marshal(structuredOutput)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Remove request url and leave only other authentication headers
-	delete(connection, requestUrlKey)
-
-	return connection, nil
+	return parsedOutput, nil
 }

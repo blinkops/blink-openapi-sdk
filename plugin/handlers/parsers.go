@@ -1,7 +1,9 @@
-package plugin
+package handlers
 
 import (
 	"fmt"
+	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/blinkops/blink-openapi-sdk/plugin"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	"regexp"
@@ -13,8 +15,8 @@ var (
 	pathParamRE = regexp.MustCompile("{[.;?]?([^{}*]+)\\*?}")
 )
 
-// defineOperations returns all operations for an openApi definition.
-func defineOperations(openApi *openapi3.T) error {
+// DefineOperations returns all operations for an openApi definition.
+func DefineOperations(openApi *openapi3.T) error {
 	for _, requestPath := range sortedPathsKeys(openApi.Paths) {
 		pathItem := openApi.Paths[requestPath]
 		// These are parameters defined for all methods on a given path. They
@@ -56,43 +58,43 @@ func defineOperations(openApi *openapi3.T) error {
 				return errors.Wrap(err, "error generating body definitions")
 			}
 
-			opDef := operationDefinition{
-				pathParams:   pathParams,
-				headerParams: filterParameterDefinitionByType(allParams, "header"),
-				queryParams:  filterParameterDefinitionByType(allParams, "query"),
-				cookieParams: filterParameterDefinitionByType(allParams, "cookie"),
-				operationId:  op.OperationID,
+			opDef := OperationDefinition{
+				PathParams:   pathParams,
+				HeaderParams: filterParameterDefinitionByType(allParams, "header"),
+				QueryParams:  filterParameterDefinitionByType(allParams, "query"),
+				CookieParams: filterParameterDefinitionByType(allParams, "cookie"),
+				OperationId:  op.OperationID,
 				// Replace newlines in summary.
-				summary:         op.Summary,
-				method:          opName,
-				path:            requestPath,
-				spec:            op,
-				bodies:          bodyDefinitions,
-				typeDefinitions: typeDefinitions,
+				Summary:         op.Summary,
+				Method:          opName,
+				Path:            requestPath,
+				Spec:            op,
+				Bodies:          bodyDefinitions,
+				TypeDefinitions: typeDefinitions,
 			}
 
-			// check for overrides of securityDefinitions.
+			// check for overrides of SecurityDefinitions.
 			// See: "Step 2. Applying security:" from the spec:
 			// https://swagger.io/docs/specification/authentication/
 			if op.Security != nil {
-				opDef.securityDefinitions = describeSecurityDefinition(*op.Security)
+				opDef.SecurityDefinitions = describeSecurityDefinition(*op.Security)
 			} else {
-				// use global securityDefinitions
-				// globalSecurityDefinitions contains the top-level securityDefinitions.
+				// use global SecurityDefinitions
+				// globalSecurityDefinitions contains the top-level SecurityDefinitions.
 				// They are the default securityPermissions which are injected into each
 				// path, except for the case where a path explicitly overrides them.
-				opDef.securityDefinitions = describeSecurityDefinition(openApi.Security)
+				opDef.SecurityDefinitions = describeSecurityDefinition(openApi.Security)
 
 			}
 
 			if op.RequestBody != nil {
-				opDef.bodyRequired = op.RequestBody.Value.Required
+				opDef.BodyRequired = op.RequestBody.Value.Required
 			}
 
 			// Generate all the type definitions needed for this operation
-			opDef.typeDefinitions = append(opDef.typeDefinitions, generateTypeDefsForOperation(opDef)...)
+			opDef.TypeDefinitions = append(opDef.TypeDefinitions, generateTypeDefsForOperation(opDef)...)
 
-			operationDefinitions[opDef.operationId] = &opDef
+			plugin.OperationDefinitions[opDef.OperationId] = &opDef
 		}
 	}
 
@@ -121,10 +123,10 @@ func describeParameters(params openapi3.Parameters) ([]parameterDefinition, erro
 		param := paramOrRef.Value
 
 		pd := parameterDefinition{
-			paramName: param.Name,
-			in:        param.In,
-			required:  param.Required,
-			spec:      param,
+			ParamName: param.Name,
+			In:        param.In,
+			Required:  param.Required,
+			Spec:      param,
 		}
 		outParams = append(outParams, pd)
 	}
@@ -148,7 +150,7 @@ func sortedOperationsKeys(dict map[string]*openapi3.Operation) []string {
 func filterParameterDefinitionByType(params []parameterDefinition, in string) []parameterDefinition {
 	var out []parameterDefinition
 	for _, p := range params {
-		if p.in == in {
+		if p.In == in {
 			out = append(out, p)
 		}
 	}
@@ -214,13 +216,13 @@ func sortedSecurityRequirementKeys(sr openapi3.SecurityRequirement) []string {
 
 // generateBodyDefinitions This function turns the OpenApi body definitions into a list of our body
 // definitions which will be used for code generation.
-func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBodyRef) ([]requestBodyDefinition, []typeDefinition, error) {
+func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBodyRef) ([]RequestBodyDefinition, []typeDefinition, error) {
 	if bodyOrRef == nil {
 		return nil, nil, nil
 	}
 	body := bodyOrRef.Value
 
-	var bodyDefinitions []requestBodyDefinition
+	var bodyDefinitions []RequestBodyDefinition
 	var typeDefinitions []typeDefinition
 
 	for contentType, content := range body.Content {
@@ -228,7 +230,7 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 		var defaultBody bool
 
 		switch contentType {
-		case requestBodyType:
+		case consts.RequestBodyType:
 			tag = "JSON"
 			defaultBody = true
 		default:
@@ -244,22 +246,22 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 		// If the request has a body, but it's not a user defined
 		// type under #/components, we'll define a type for it, so
 		// that we have an easy to use type for marshaling.
-		if bodySchema.refType == "" {
+		if bodySchema.RefType == "" {
 			td := typeDefinition{
 				typeName: bodyTypeName,
 				schema:   bodySchema,
 			}
 			typeDefinitions = append(typeDefinitions, td)
 			// The body schema now is a reference to a type
-			bodySchema.refType = bodyTypeName
+			bodySchema.RefType = bodyTypeName
 		}
 
-		bd := requestBodyDefinition{
-			required:    body.Required,
-			schema:      bodySchema,
-			nameTag:     tag,
-			contentType: contentType,
-			defaultBody: defaultBody,
+		bd := RequestBodyDefinition{
+			Required:    body.Required,
+			Schema:      bodySchema,
+			NameTag:     tag,
+			ContentType: contentType,
+			DefaultBody: defaultBody,
 		}
 		bodyDefinitions = append(bodyDefinitions, bd)
 	}
@@ -272,14 +274,14 @@ func generateGoSchema(sref *openapi3.SchemaRef) (schema, error) {
 	// i.e. the parent schema defines a type:array, but the array has
 	// no items defined. Therefore we have at least valid Go-Code.
 	if sref == nil {
-		return schema{goType: "interface{}"}, nil
+		return schema{GoType: "interface{}"}, nil
 	}
 
 	oApiSchema := sref.Value
-	return schema{oApiSchema: oApiSchema}, nil
+	return schema{OApiSchema: oApiSchema}, nil
 }
 
-func generateTypeDefsForOperation(op operationDefinition) []typeDefinition {
+func generateTypeDefsForOperation(op OperationDefinition) []typeDefinition {
 	var typeDefs []typeDefinition
 	// Start with the params object itself
 	if len(op.params()) != 0 {
@@ -287,58 +289,58 @@ func generateTypeDefsForOperation(op operationDefinition) []typeDefinition {
 	}
 
 	// Now, go through all the additional types we need to declare.
-	for _, param := range op.allParams() {
-		typeDefs = append(typeDefs, param.schema.getAdditionalTypeDefs()...)
+	for _, param := range op.AllParams() {
+		typeDefs = append(typeDefs, param.Schema.getAdditionalTypeDefs()...)
 	}
 
-	for _, body := range op.bodies {
-		typeDefs = append(typeDefs, body.schema.getAdditionalTypeDefs()...)
+	for _, body := range op.Bodies {
+		typeDefs = append(typeDefs, body.Schema.getAdditionalTypeDefs()...)
 	}
 	return typeDefs
 }
 
 func (s schema) getAdditionalTypeDefs() []typeDefinition {
 	var result []typeDefinition
-	for _, p := range s.properties {
+	for _, p := range s.Properties {
 		result = append(result, p.schema.getAdditionalTypeDefs()...)
 	}
-	result = append(result, s.additionalTypes...)
+	result = append(result, s.AdditionalTypes...)
 	return result
 }
 
 // generateParamsTypes This defines the schema for a parameters definition object which encapsulates
 // all the query, header and cookie parameters for an operation.
-func generateParamsTypes(op operationDefinition) []typeDefinition {
+func generateParamsTypes(op OperationDefinition) []typeDefinition {
 	var typeDefs []typeDefinition
 
-	objectParams := op.queryParams
-	objectParams = append(objectParams, op.headerParams...)
-	objectParams = append(objectParams, op.cookieParams...)
+	objectParams := op.QueryParams
+	objectParams = append(objectParams, op.HeaderParams...)
+	objectParams = append(objectParams, op.CookieParams...)
 
-	typeName := op.operationId + "params"
+	typeName := op.OperationId + "params"
 
 	s := schema{}
 	for _, param := range objectParams {
-		pSchema := param.schema
-		if pSchema.hasAdditionalProperties {
-			propRefName := strings.Join([]string{typeName, param.paramName}, "_")
-			pSchema.refType = propRefName
+		pSchema := param.Schema
+		if pSchema.HasAdditionalProperties {
+			propRefName := strings.Join([]string{typeName, param.ParamName}, "_")
+			pSchema.RefType = propRefName
 			typeDefs = append(typeDefs, typeDefinition{
 				typeName: propRefName,
-				schema:   param.schema,
+				schema:   param.Schema,
 			})
 		}
 		prop := property{
-			description:    param.spec.Description,
-			jsonFieldName:  param.paramName,
-			required:       param.required,
+			description:    param.Spec.Description,
+			jsonFieldName:  param.ParamName,
+			required:       param.Required,
 			schema:         pSchema,
-			extensionProps: &param.spec.ExtensionProps,
+			extensionProps: &param.Spec.ExtensionProps,
 		}
-		s.properties = append(s.properties, prop)
+		s.Properties = append(s.Properties, prop)
 	}
 
-	s.description = op.spec.Description
+	s.Description = op.Spec.Description
 	td := typeDefinition{
 		typeName: typeName,
 		schema:   s,
@@ -346,7 +348,7 @@ func generateParamsTypes(op operationDefinition) []typeDefinition {
 	return append(typeDefs, td)
 }
 
-func getPropertyByName(name string, propertySchema *openapi3.Schema) *openapi3.Schema {
+func GetPropertyByName(name string, propertySchema *openapi3.Schema) *openapi3.Schema {
 	var subPropertySchema *openapi3.Schema
 
 	for propertyName, bodyProperty := range propertySchema.Properties {
