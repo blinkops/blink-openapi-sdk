@@ -137,7 +137,7 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 			paramType := pathParam.spec.Schema.Value.Type
 			paramDefault, _ := pathParam.spec.Schema.Value.Default.(string)
 			paramPlaceholder := getParamPlaceholder(pathParam.spec.Example, paramType)
-			paramOptions := getParamOptions(pathParam.spec.Schema.Value.Items.Value.Enum)
+			paramOptions := getParamOptions(pathParam.spec.Schema.Value.Enum)
 
 			action.Parameters[pathParam.paramName] = plugin.ActionParameter{
 				Type:        paramType,
