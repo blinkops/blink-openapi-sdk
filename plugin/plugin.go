@@ -8,6 +8,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -42,6 +43,11 @@ type openApiPlugin struct {
 	openApiFile string
 }
 
+type actionOutput struct {
+	Output string `json:"output"`
+	Error  string `json:"error"`
+}
+
 func (p *openApiPlugin) Describe() plugin.Description {
 	log.Debug("Handling Describe request!")
 	return p.description
@@ -61,7 +67,6 @@ func (p *openApiPlugin) TestCredentials(map[string]connections.ConnectionInstanc
 }
 
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
-	result := []byte{}
 	client := &http.Client{}
 	openApiRequest, err := p.parseActionRequest(actionContext, request)
 
@@ -79,11 +84,45 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return nil, err
 	}
 
-	if _, err = response.Body.Read(result); err != nil {
+	result, err := buildResponse(response)
+
+	if err != nil {
 		return nil, err
 	}
 
-	return &plugin.ExecuteActionResponse{ErrorCode: int64(response.StatusCode), Result: result}, nil
+	return &plugin.ExecuteActionResponse{ErrorCode: 0, Result: result}, nil
+}
+
+func buildResponse(response *http.Response) ([]byte, error) {
+	var (
+		responseOutput string
+		responseError  string
+	)
+
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	result, err := ioutil.ReadAll(response.Body)
+
+	if response.StatusCode != http.StatusOK {
+		responseError = string(result)
+	} else {
+		responseOutput = string(result)
+	}
+
+	structuredOutput := actionOutput{
+		Output: responseOutput,
+		Error:  responseError,
+	}
+
+	parsedOutput, err := json.Marshal(structuredOutput)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return parsedOutput, nil
 }
 
 func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
