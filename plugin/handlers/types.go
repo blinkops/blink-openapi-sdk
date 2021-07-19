@@ -2,6 +2,10 @@ package handlers
 
 import "github.com/getkin/kin-openapi/openapi3"
 
+var (
+	OperationDefinitions = map[string]*OperationDefinition{}
+)
+
 // OperationDefinition This structure describes an Operation
 type OperationDefinition struct {
 	OperationId         string                // The operation_id description from OpenApi, used to generate function names

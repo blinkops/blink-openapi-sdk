@@ -3,7 +3,6 @@ package handlers
 import (
 	"fmt"
 	"github.com/blinkops/blink-openapi-sdk/consts"
-	"github.com/blinkops/blink-openapi-sdk/plugin"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	"regexp"
@@ -94,7 +93,7 @@ func DefineOperations(openApi *openapi3.T) error {
 			// Generate all the type definitions needed for this operation
 			opDef.TypeDefinitions = append(opDef.TypeDefinitions, generateTypeDefsForOperation(opDef)...)
 
-			plugin.OperationDefinitions[opDef.OperationId] = &opDef
+			OperationDefinitions[opDef.OperationId] = &opDef
 		}
 	}
 

@@ -18,9 +18,7 @@ import (
 )
 
 var (
-	OperationDefinitions = map[string]*handlers.OperationDefinition{}
 	requestUrl           string
-	MaskData             *mask.Mask
 )
 
 type openApiPlugin struct {
@@ -88,14 +86,14 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 		return nil, err
 	}
 
-	operation := OperationDefinitions[actionName]
+	operation := handlers.OperationDefinitions[actionName]
 	rawParameters, err := executeActionRequest.GetParameters()
 
 	if err != nil {
 		return nil, err
 	}
 
-	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters, operation)
+	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters)
 
 	requestUrl = p.getRequestUrl(actionContext)
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
@@ -160,12 +158,12 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 		return nil, err
 	}
 
-	for _, operation := range OperationDefinitions {
+	for _, operation := range handlers.OperationDefinitions {
 		actionName := operation.OperationId
 
 		// Skip masked actions
-		if MaskData != nil {
-			if maskedAction, ok := MaskData.Actions[actionName]; !ok {
+		if mask.MaskData != nil {
+			if maskedAction, ok := mask.MaskData.Actions[actionName]; !ok {
 				continue
 			} else {
 				if maskedAction.Alias != "" {
@@ -191,8 +189,8 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 			isParamRequired := pathParam.Required
 
 			// Skip masked params (always show required params with no default value)
-			if MaskData != nil && !(isParamRequired && paramDefault == "") {
-				if maskedParam, ok := MaskData.Actions[actionName].Parameters[paramName]; !ok {
+			if mask.MaskData != nil && !(isParamRequired && paramDefault == "") {
+				if maskedParam, ok := mask.MaskData.Actions[actionName].Parameters[paramName]; !ok {
 					continue
 				} else {
 					if maskedParam.Alias != "" {
@@ -269,6 +267,17 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				if propertyName == requiredParam {
 					isParamRequired = true
 					break
+				}
+			}
+
+			// Skip masked params (always show required params with no default value)
+			if mask.MaskData != nil && !(isParamRequired && paramDefault == "") {
+				if maskedParam, ok := mask.MaskData.Actions[action.Name].Parameters[fullParamPath]; !ok {
+					continue
+				} else {
+					if maskedParam.Alias != "" {
+						fullParamPath = maskedParam.Alias
+					}
 				}
 			}
 

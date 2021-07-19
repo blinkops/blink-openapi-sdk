@@ -1,30 +1,27 @@
 package mask
 
 import (
-	"fmt"
-	"github.com/blinkops/blink-openapi-sdk/plugin"
-	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
-	"github.com/go-yaml/yaml"
-	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 	"io/ioutil"
 )
 
 var (
 	reverseActionAliasMap    = map[string]string{}
 	reverseParameterAliasMap = map[string]map[string]string{}
+	MaskData                 = &Mask{}
 )
 
 type Mask struct {
-	Actions map[string]*MaskedAction `yaml:"actions"`
+	Actions map[string]*MaskedAction `yaml:"actions,omitempty"`
 }
 
 type MaskedAction struct {
-	Alias      string                            `yaml:"alias"`
-	Parameters map[string]*MaskedActionParameter `yaml:"parameters"`
+	Alias      string                           `yaml:"alias,omitempty"`
+	Parameters map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
 }
 
 type MaskedActionParameter struct {
-	Alias string `yaml:"alias"`
+	Alias string `yaml:"alias,omitempty"`
 }
 
 func ParseMask(maskFile string) error {
@@ -38,7 +35,7 @@ func ParseMask(maskFile string) error {
 		return err
 	}
 
-	if err = yaml.Unmarshal(maskData, plugin.MaskData); err != nil {
+	if err = yaml.Unmarshal(maskData, MaskData); err != nil {
 		return err
 	}
 
@@ -49,7 +46,7 @@ func ParseMask(maskFile string) error {
 }
 
 func buildActionAliasMap() {
-	for originalName, actionData := range plugin.MaskData.Actions {
+	for originalName, actionData := range MaskData.Actions {
 		if actionData.Alias != "" {
 			reverseActionAliasMap[actionData.Alias] = originalName
 		}
@@ -57,7 +54,7 @@ func buildActionAliasMap() {
 }
 
 func buildParamAliasMap() {
-	for actionName, actionData := range plugin.MaskData.Actions {
+	for actionName, actionData := range MaskData.Actions {
 		reverseParameterAliasMap[actionName] = map[string]string{}
 
 		for originalName, parameterData := range actionData.Parameters {
@@ -69,39 +66,21 @@ func buildParamAliasMap() {
 }
 
 func ReplaceActionAlias(actionName string) (string, error) {
-	// Check if no alias was used for this action
-	if _, ok := plugin.OperationDefinitions[actionName]; ok {
-		return actionName, nil
-	}
-
-	// Check the alias for this action
 	if originalName, ok := reverseActionAliasMap[actionName]; ok {
 		return originalName, nil
+	} else {
+		return actionName, nil
 	}
-
-	return "", errors.New(fmt.Sprintf("Couldn't find action for alias: %s", actionName))
 }
 
-func ReplaceActionParametersAliases(originalActionName string, rawParameters map[string]string, operation *handlers.OperationDefinition) map[string]string {
+func ReplaceActionParametersAliases(originalActionName string, rawParameters map[string]string) map[string]string {
 	requestParameters := map[string]string{}
 
 	for paramName, paramValue := range rawParameters {
-		// Check if no alias was used for this parameter
-		for _, pathParam := range operation.AllParams() {
-			if pathParam.ParamName == paramName {
-				requestParameters[paramName] = paramValue
-				break
-			}
-		}
-
-		// Parameter was found by its original name
-		if _, ok := requestParameters[paramName]; ok {
-			continue
-		}
-
-		// Check the alias for this parameter
 		if originalName, ok := reverseParameterAliasMap[originalActionName][paramName]; ok {
 			requestParameters[originalName] = paramValue
+		} else {
+			requestParameters[paramName] = paramValue
 		}
 	}
 
