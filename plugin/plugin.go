@@ -134,25 +134,10 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 		}
 
 		for _, pathParam := range operation.allParams() {
-			var paramPlaceholder string
 			paramType := pathParam.spec.Schema.Value.Type
-			paramOptions := []string{}
 			paramDefault, _ := pathParam.spec.Schema.Value.Default.(string)
-
-			// Get Parameter dropdown options
-			for _, option := range pathParam.spec.Schema.Value.Items.Value.Enum {
-				if optionString, ok := option.(string); ok {
-					paramOptions = append(paramOptions, optionString)
-				}
-			}
-
-			if paramType != typeObject {
-				paramPlaceholder, _ = pathParam.spec.Example.(string)
-
-				if paramPlaceholder != "" {
-					paramPlaceholder = paramPlaceholderPrefix + paramPlaceholder
-				}
-			}
+			paramPlaceholder := getParamPlaceholder(pathParam.spec.Example, paramType)
+			paramOptions := getParamOptions(pathParam.spec.Schema.Value.Items.Value.Enum)
 
 			action.Parameters[pathParam.paramName] = plugin.ActionParameter{
 				Type:        paramType,
@@ -200,9 +185,9 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 		if bodyProperty.Value.Properties != nil {
 			handleBodyParams(bodyProperty.Value, fullParamPath, action)
 		} else {
-			var paramPlaceholder string
 			paramType := bodyProperty.Value.Type
-			paramOptions := []string{}
+			paramOptions := getParamOptions(bodyProperty.Value.Enum)
+			paramPlaceholder := getParamPlaceholder(bodyProperty.Value.Example, paramType)
 			paramDefault, _ := bodyProperty.Value.Default.(string)
 			isParamRequired := false
 
@@ -213,30 +198,44 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				}
 			}
 
-			// Get Parameter dropdown options
-			for _, option := range bodyProperty.Value.Enum {
-				if optionString, ok := option.(string); ok {
-					paramOptions = append(paramOptions, optionString)
-				}
-			}
-
-			if paramType != typeObject {
-				paramPlaceholder, _ = bodyProperty.Value.Example.(string)
-
-				if paramPlaceholder != "" {
-					paramPlaceholder = paramPlaceholder + paramPlaceholder
-				}
-			}
-
 			action.Parameters[fullParamPath] = plugin.ActionParameter{
 				Type:        paramType,
 				Description: bodyProperty.Value.Description,
+				Placeholder: paramPlaceholder,
 				Required:    isParamRequired,
 				Default:     paramDefault,
 				Options:     paramOptions,
 			}
 		}
 	}
+}
+
+func getParamOptions(parsedOptions []interface{}) []string {
+	paramOptions := []string{}
+
+	if parsedOptions == nil {
+		return paramOptions
+	}
+
+	for _, option := range parsedOptions {
+		if optionString, ok := option.(string); ok {
+			paramOptions = append(paramOptions, optionString)
+		}
+	}
+
+	return paramOptions
+}
+
+func getParamPlaceholder(paramExample interface{}, paramType string) string {
+	paramPlaceholder, _ := paramExample.(string)
+
+	if paramType != typeObject {
+		if paramPlaceholder != "" {
+			return paramPlaceholderPrefix + paramPlaceholder
+		}
+	}
+
+	return paramPlaceholder
 }
 
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
