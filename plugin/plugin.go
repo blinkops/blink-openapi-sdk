@@ -15,17 +15,19 @@ import (
 )
 
 const (
-	typeArray          = "array"
-	typeInteger        = "integer"
-	typeBoolean        = "boolean"
-	bodyParamDelimiter = "."
-	requestBodyType    = "application/json"
-	paramPrefix        = "{"
-	paramSuffix        = "}"
-	requestUrlKey      = "REQUEST_URL"
-	arrayDelimiter     = ","
-	contentTypeHeader  = "Content-Type"
-	methodPost         = "POST"
+	typeArray              = "array"
+	typeInteger            = "integer"
+	typeBoolean            = "boolean"
+	typeObject             = "object"
+	bodyParamDelimiter     = "."
+	requestBodyType        = "application/json"
+	paramPrefix            = "{"
+	paramSuffix            = "}"
+	requestUrlKey          = "REQUEST_URL"
+	arrayDelimiter         = ","
+	contentTypeHeader      = "Content-Type"
+	methodPost             = "POST"
+	paramPlaceholderPrefix = "Example: "
 )
 
 var (
@@ -132,21 +134,30 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 		}
 
 		for _, pathParam := range operation.allParams() {
+			var paramPlaceholder string
 			paramType := pathParam.spec.Schema.Value.Type
 			paramOptions := []string{}
 			paramDefault, _ := pathParam.spec.Schema.Value.Default.(string)
 
-			if paramType == typeArray {
-				for _, option := range pathParam.spec.Schema.Value.Items.Value.Enum {
-					if optionString, ok := option.(string); ok {
-						paramOptions = append(paramOptions, optionString)
-					}
+			// Get Parameter dropdown options
+			for _, option := range pathParam.spec.Schema.Value.Items.Value.Enum {
+				if optionString, ok := option.(string); ok {
+					paramOptions = append(paramOptions, optionString)
+				}
+			}
+
+			if paramType != typeObject {
+				paramPlaceholder, _ = pathParam.spec.Example.(string)
+
+				if paramPlaceholder != "" {
+					paramPlaceholder = paramPlaceholderPrefix + paramPlaceholder
 				}
 			}
 
 			action.Parameters[pathParam.paramName] = plugin.ActionParameter{
-				Type:        pathParam.spec.Schema.Value.Type,
+				Type:        paramType,
 				Description: pathParam.spec.Description,
+				Placeholder: paramPlaceholder,
 				Required:    pathParam.required,
 				Default:     paramDefault,
 				Options:     paramOptions,
@@ -189,6 +200,8 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 		if bodyProperty.Value.Properties != nil {
 			handleBodyParams(bodyProperty.Value, fullParamPath, action)
 		} else {
+			var paramPlaceholder string
+			paramType := bodyProperty.Value.Type
 			paramOptions := []string{}
 			paramDefault, _ := bodyProperty.Value.Default.(string)
 			isParamRequired := false
@@ -200,16 +213,23 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				}
 			}
 
-			if bodyProperty.Value.Type == typeArray {
-				for _, option := range bodyProperty.Value.Enum {
-					if optionString, ok := option.(string); ok {
-						paramOptions = append(paramOptions, optionString)
-					}
+			// Get Parameter dropdown options
+			for _, option := range bodyProperty.Value.Enum {
+				if optionString, ok := option.(string); ok {
+					paramOptions = append(paramOptions, optionString)
+				}
+			}
+
+			if paramType != typeObject {
+				paramPlaceholder, _ = bodyProperty.Value.Example.(string)
+
+				if paramPlaceholder != "" {
+					paramPlaceholder = paramPlaceholder + paramPlaceholder
 				}
 			}
 
 			action.Parameters[fullParamPath] = plugin.ActionParameter{
-				Type:        bodyProperty.Value.Type,
+				Type:        paramType,
 				Description: bodyProperty.Value.Description,
 				Required:    isParamRequired,
 				Default:     paramDefault,
