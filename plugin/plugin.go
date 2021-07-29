@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 var (
@@ -51,7 +52,9 @@ func (p *openApiPlugin) TestCredentials(map[string]connections.ConnectionInstanc
 }
 
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: time.Duration(request.Timeout) * time.Second,
+	}
 	openApiRequest, err := p.parseActionRequest(actionContext, request)
 
 	if err != nil {
