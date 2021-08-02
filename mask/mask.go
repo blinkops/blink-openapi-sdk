@@ -40,7 +40,7 @@ func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionPa
 func (m *Mask) IsParamRequired(actionName string, paramName string) string {
 	paramMask := MaskData.GetParameter(actionName, paramName)
 
-	if paramMask != nil && paramMask.Required != "" {
+	if paramMask != nil {
 		return paramMask.Required
 	}
 
