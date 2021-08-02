@@ -124,7 +124,11 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	}
 
 	if operation.Method == http.MethodPost {
-		request.Header.Set(consts.ContentTypeHeader, consts.RequestBodyType)
+		bodyType := operation.GetDefaultBodyType()
+
+		if bodyType != "" {
+			request.Header.Set(consts.ContentTypeHeader, bodyType)
+		}
 	}
 
 	parseHeaderParams(requestParameters, operation, request)
@@ -219,7 +223,7 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 		}
 
 		for _, paramBody := range operation.Bodies {
-			if strings.ToLower(paramBody.ContentType) == consts.RequestBodyType {
+			if paramBody.DefaultBody {
 				handleBodyParams(paramBody.Schema.OApiSchema, "", &action)
 				break
 			}

@@ -223,6 +223,7 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 
 	var bodyDefinitions []RequestBodyDefinition
 	var typeDefinitions []typeDefinition
+	jsonBodyFound := false
 
 	for contentType, content := range body.Content {
 		var tag string
@@ -230,6 +231,7 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 
 		switch contentType {
 		case consts.RequestBodyType:
+			jsonBodyFound = true
 			tag = "JSON"
 			defaultBody = true
 		default:
@@ -264,6 +266,12 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 		}
 		bodyDefinitions = append(bodyDefinitions, bd)
 	}
+
+	// If request JSON body isn't supported, just use the first available body type option
+	if !jsonBodyFound && len(bodyDefinitions) > 0 {
+		bodyDefinitions[0].DefaultBody = true
+	}
+
 	return bodyDefinitions, typeDefinitions, nil
 }
 

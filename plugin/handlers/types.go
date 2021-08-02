@@ -39,6 +39,16 @@ func (o *OperationDefinition) AllParams() []parameterDefinition {
 	return result
 }
 
+func (o OperationDefinition) GetDefaultBodyType() string {
+	for _, paramBody := range o.Bodies {
+		if paramBody.DefaultBody {
+			return paramBody.ContentType
+		}
+	}
+
+	return ""
+}
+
 // parameterDefinition describes the various request parameters
 type parameterDefinition struct {
 	ParamName string // The original json parameter name, eg param_name
