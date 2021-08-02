@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	requestUrl           string
+	requestUrl string
 )
 
 type openApiPlugin struct {
@@ -97,9 +97,8 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 
 	requestUrl = p.getRequestUrl(actionContext)
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
-	requestQuery := parseQueryParams(requestParameters, operation)
 
-	operationUrl, err := url.Parse(requestUrl + requestPath + "?" + requestQuery)
+	operationUrl, err := url.Parse(requestUrl + requestPath)
 
 	if err != nil {
 		return nil, err
@@ -111,18 +110,23 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 		return nil, err
 	}
 
+	if operation.Method == http.MethodGet {
+		requestBody = nil
+	}
+
 	request, err := http.NewRequest(operation.Method, operationUrl.String(), bytes.NewBuffer(requestBody))
 
 	if err != nil {
 		return nil, err
 	}
 
-	if operation.Method == consts.MethodPost {
+	if operation.Method == http.MethodPost {
 		request.Header.Set(consts.ContentTypeHeader, consts.RequestBodyType)
 	}
 
 	parseHeaderParams(requestParameters, operation, request)
 	parseCookieParams(requestParameters, operation, request)
+	parseQueryParams(requestParameters, operation, request)
 
 	return request, nil
 }
