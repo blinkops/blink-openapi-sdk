@@ -14,7 +14,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -197,14 +196,6 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 			isParamRequired := pathParam.Required
 
 			if mask.MaskData != nil {
-				paramMaskDefault := mask.MaskData.IsParamRequired(actionName, paramName)
-
-				if paramMaskDefault != "" {
-					isParamRequired, _ = strconv.ParseBool(paramMaskDefault)
-				}
-			}
-
-			if mask.MaskData != nil {
 				if maskedParam := mask.MaskData.GetParameter(actionName, paramName); maskedParam == nil {
 					continue
 				} else {
@@ -282,14 +273,6 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				if propertyName == requiredParam {
 					isParamRequired = true
 					break
-				}
-			}
-
-			if mask.MaskData != nil {
-				paramMaskDefault := mask.MaskData.IsParamRequired(action.Name, fullParamPath)
-
-				if paramMaskDefault != "" {
-					isParamRequired, _ = strconv.ParseBool(paramMaskDefault)
 				}
 			}
 
