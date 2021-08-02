@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -166,7 +167,8 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 	}
 
 	for _, operation := range handlers.OperationDefinitions {
-		actionName := operation.OperationId
+		originalActionName := operation.OperationId
+		actionName := originalActionName
 
 		// Skip masked actions
 		if mask.MaskData != nil {
@@ -188,12 +190,19 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 		}
 
 		for _, pathParam := range operation.AllParams() {
+			var isParamRequired bool
 			paramName := pathParam.ParamName
 			paramType := pathParam.Spec.Schema.Value.Type
 			paramDefault := getParamDefault(pathParam.Spec.Schema.Value.Default, paramType)
 			paramPlaceholder := getParamPlaceholder(pathParam.Spec.Example, paramType)
 			paramOptions := getParamOptions(pathParam.Spec.Schema.Value.Enum, &paramType)
-			isParamRequired := pathParam.Required
+			isParamRequiredOverride := mask.MaskData.Actions[originalActionName].Parameters[paramName].Default
+
+			if isParamRequiredOverride != "" {
+				isParamRequired, _ = strconv.ParseBool(mask.IsParamRequired(originalActionName, pathParam.ParamName))
+			} else {
+				isParamRequired = pathParam.Required
+			}
 
 			// Skip masked params (always show required params with no default value)
 			if mask.MaskData != nil && !(isParamRequired && paramDefault == "") {

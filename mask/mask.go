@@ -16,12 +16,13 @@ type Mask struct {
 }
 
 type MaskedAction struct {
-	Alias      string                           `yaml:"alias,omitempty"`
+	Alias      string                            `yaml:"alias,omitempty"`
 	Parameters map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
 }
 
 type MaskedActionParameter struct {
-	Alias string `yaml:"alias,omitempty"`
+	Alias   string `yaml:"alias,omitempty"`
+	Default string `yaml:"default,omitempty"` // Using string to get empty value if not set
 }
 
 func ParseMask(maskFile string) error {
@@ -92,4 +93,15 @@ func ReplaceActionParametersAliases(originalActionName string, rawParameters map
 	}
 
 	return requestParameters
+}
+
+func IsParamRequired(actionName string, paramName string) string {
+	originalParamName := replaceActionParameterAlias(actionName, paramName)
+	isParamRequiredOverride := MaskData.Actions[actionName].Parameters[originalParamName].Default
+
+	if isParamRequiredOverride != "" {
+		return isParamRequiredOverride
+	}
+
+	return ""
 }
