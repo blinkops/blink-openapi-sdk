@@ -167,12 +167,11 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 	}
 
 	for _, operation := range handlers.OperationDefinitions {
-		originalActionName := operation.OperationId
-		actionName := originalActionName
+		actionName := operation.OperationId
 
 		// Skip masked actions
 		if mask.MaskData != nil {
-			if maskedAction, ok := mask.MaskData.Actions[actionName]; !ok {
+			if maskedAction := mask.MaskData.GetAction(actionName); maskedAction == nil {
 				continue
 			} else {
 				if maskedAction.Alias != "" {
@@ -190,23 +189,24 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 		}
 
 		for _, pathParam := range operation.AllParams() {
-			var isParamRequired bool
 			paramName := pathParam.ParamName
 			paramType := pathParam.Spec.Schema.Value.Type
 			paramDefault := getParamDefault(pathParam.Spec.Schema.Value.Default, paramType)
 			paramPlaceholder := getParamPlaceholder(pathParam.Spec.Example, paramType)
 			paramOptions := getParamOptions(pathParam.Spec.Schema.Value.Enum, &paramType)
-			isParamRequiredOverride := mask.MaskData.Actions[originalActionName].Parameters[paramName].Default
+			isParamRequired := pathParam.Required
 
-			if isParamRequiredOverride != "" {
-				isParamRequired, _ = strconv.ParseBool(mask.IsParamRequired(originalActionName, pathParam.ParamName))
-			} else {
-				isParamRequired = pathParam.Required
+			if mask.MaskData != nil {
+				paramMask := mask.MaskData.GetParameter(actionName, paramName)
+
+				if paramMask != nil && paramMask.Default != "" {
+					isParamRequired, _ = strconv.ParseBool(mask.IsParamRequired(actionName, paramName))
+				}
 			}
 
 			// Skip masked params (always show required params with no default value)
 			if mask.MaskData != nil && !(isParamRequired && paramDefault == "") {
-				if maskedParam, ok := mask.MaskData.Actions[actionName].Parameters[paramName]; !ok {
+				if maskedParam := mask.MaskData.GetParameter(actionName, paramName); maskedParam == nil {
 					continue
 				} else {
 					if maskedParam.Alias != "" {
@@ -288,7 +288,7 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 
 			// Skip masked params (always show required params with no default value)
 			if mask.MaskData != nil && !(isParamRequired && paramDefault == "") {
-				if maskedParam, ok := mask.MaskData.Actions[action.Name].Parameters[fullParamPath]; !ok {
+				if maskedParam := mask.MaskData.GetParameter(action.Name, fullParamPath); maskedParam == nil {
 					continue
 				} else {
 					if maskedParam.Alias != "" {

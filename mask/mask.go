@@ -15,6 +15,28 @@ type Mask struct {
 	Actions map[string]*MaskedAction `yaml:"actions,omitempty"`
 }
 
+func (m *Mask) GetAction(actionName string) *MaskedAction {
+	if action, ok := m.Actions[ReplaceActionAlias(actionName)]; ok {
+		return action
+	}
+
+	return nil
+}
+
+func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionParameter {
+	originalActionName := ReplaceActionAlias(actionName)
+
+	if action, ok := m.Actions[ReplaceActionAlias(originalActionName)]; ok {
+		if param, ok := action.Parameters[replaceActionParameterAlias(originalActionName, paramName)]; ok {
+			return param
+		}
+
+		return nil
+	}
+
+	return nil
+}
+
 type MaskedAction struct {
 	Alias      string                            `yaml:"alias,omitempty"`
 	Parameters map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
