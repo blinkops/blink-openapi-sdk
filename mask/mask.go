@@ -40,8 +40,8 @@ func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionPa
 func (m *Mask) IsParamRequired(actionName string, paramName string) string {
 	paramMask := MaskData.GetParameter(actionName, paramName)
 
-	if paramMask != nil && paramMask.Default != "" {
-		return paramMask.Default
+	if paramMask != nil && paramMask.Required != "" {
+		return paramMask.Required
 	}
 
 	return ""
@@ -53,8 +53,8 @@ type MaskedAction struct {
 }
 
 type MaskedActionParameter struct {
-	Alias   string `yaml:"alias,omitempty"`
-	Default string `yaml:"default,omitempty"` // Using string to get empty value if not set
+	Alias    string `yaml:"alias,omitempty"`
+	Required string `yaml:"required,omitempty"`
 }
 
 func ParseMask(maskFile string) error {
