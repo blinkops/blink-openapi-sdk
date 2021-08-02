@@ -35,6 +35,8 @@ func parseHeaderParams(requestParameters map[string]string, operation *handlers.
 			}
 		}
 	}
+
+	request.Header.Set("accept", "application/json")
 }
 
 func parsePathParams(requestParameters map[string]string, operation *handlers.OperationDefinition, path string) string {
@@ -65,7 +67,6 @@ func parseQueryParams(requestParameters map[string]string, operation *handlers.O
 	}
 
 	request.URL.RawQuery = query.Encode()
-
 
 }
 
