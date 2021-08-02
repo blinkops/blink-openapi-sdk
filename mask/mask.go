@@ -65,25 +65,30 @@ func buildParamAliasMap() {
 	}
 }
 
-func ReplaceActionAlias(actionName string) (string, error) {
+func ReplaceActionAlias(actionName string) string {
 	if originalName, ok := reverseActionAliasMap[actionName]; ok {
-		return originalName, nil
-	} else {
-		return actionName, nil
+		return originalName
 	}
+
+	return actionName
+}
+
+func ReplaceActionParameterAlias(actionName string, paramName string) string {
+	if actionParams, ok := reverseParameterAliasMap[actionName]; ok {
+		if originalName, ok := actionParams[paramName]; ok {
+			return originalName
+		}
+	}
+
+	return paramName
 }
 
 func ReplaceActionParametersAliases(originalActionName string, rawParameters map[string]string) map[string]string {
 	requestParameters := map[string]string{}
 
 	for paramName, paramValue := range rawParameters {
-		originalName := reverseParameterAliasMap[originalActionName][paramName]
-
-		if originalName, ok := reverseParameterAliasMap[originalActionName][originalName]; ok {
-			requestParameters[originalName] = paramValue
-		} else {
-			requestParameters[paramName] = paramValue
-		}
+		originalName := ReplaceActionParameterAlias(originalActionName, paramName)
+		requestParameters[originalName] = paramValue
 	}
 
 	return requestParameters
