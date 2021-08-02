@@ -97,8 +97,9 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 
 	requestUrl = p.getRequestUrl(actionContext)
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
+	requestQuery := parseQueryParams(requestParameters, operation)
 
-	operationUrl, err := url.Parse(requestUrl + requestPath)
+	operationUrl, err := url.Parse(requestUrl + requestPath + "?" + requestQuery)
 
 	if err != nil {
 		return nil, err
@@ -122,7 +123,6 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 
 	parseHeaderParams(requestParameters, operation, request)
 	parseCookieParams(requestParameters, operation, request)
-	parseQueryParams(requestParameters, operation, request)
 
 	return request, nil
 }

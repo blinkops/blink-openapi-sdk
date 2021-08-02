@@ -8,6 +8,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	log "github.com/sirupsen/logrus"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -36,7 +37,7 @@ func parseHeaderParams(requestParameters map[string]string, operation *handlers.
 		}
 	}
 
-	request.Header.Set("accept", "application/json")
+
 }
 
 func parsePathParams(requestParameters map[string]string, operation *handlers.OperationDefinition, path string) string {
@@ -53,20 +54,21 @@ func parsePathParams(requestParameters map[string]string, operation *handlers.Op
 	return requestPath
 }
 
-func parseQueryParams(requestParameters map[string]string, operation *handlers.OperationDefinition, request *http.Request) {
+func parseQueryParams(requestParameters map[string]string, operation *handlers.OperationDefinition) string{
 
-	query := request.URL.Query()
+	query := []string{}
+
 	for paramName, paramValue := range requestParameters {
 
 		for _, queryParam := range operation.QueryParams {
 			if paramName == queryParam.ParamName {
-				query.Add(paramName, paramValue)
+				query = append(query, paramName+"="+paramValue)
 			}
 
 		}
 	}
 
-	request.URL.RawQuery = query.Encode()
+	return 	url.QueryEscape(strings.Join(query, "&"))
 
 }
 
