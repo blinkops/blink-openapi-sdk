@@ -62,13 +62,13 @@ func parseQueryParams(requestParameters map[string]string, operation *handlers.O
 
 		for _, queryParam := range operation.QueryParams {
 			if paramName == queryParam.ParamName {
-				query = append(query, paramName+"="+paramValue)
+				query = append(query, paramName+"="+url.QueryEscape(paramValue))
 			}
 
 		}
 	}
 
-	return 	url.QueryEscape(strings.Join(query, "&"))
+	return 	strings.Join(query, "&")
 
 }
 
