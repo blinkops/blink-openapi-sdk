@@ -204,8 +204,7 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 				}
 			}
 
-			// Skip masked params (always show required params with no default value)
-			if mask.MaskData != nil && !(isParamRequired && paramDefault == "") {
+			if mask.MaskData != nil {
 				if maskedParam := mask.MaskData.GetParameter(actionName, paramName); maskedParam == nil {
 					continue
 				} else {
