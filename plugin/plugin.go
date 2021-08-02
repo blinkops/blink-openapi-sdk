@@ -82,12 +82,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
-	actionName, err := mask.ReplaceActionAlias(actionName)
-
-	if err != nil {
-		log.Error(err)
-		return nil, err
-	}
+	actionName = mask.ReplaceActionAlias(actionName)
 
 	operation := handlers.OperationDefinitions[actionName]
 	rawParameters, err := executeActionRequest.GetParameters()
@@ -97,7 +92,6 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	}
 
 	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters)
-
 	requestUrl = p.getRequestUrl(actionContext)
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
 

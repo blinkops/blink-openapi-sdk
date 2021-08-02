@@ -73,7 +73,7 @@ func ReplaceActionAlias(actionName string) string {
 	return actionName
 }
 
-func ReplaceActionParameterAlias(actionName string, paramName string) string {
+func replaceActionParameterAlias(actionName string, paramName string) string {
 	if actionParams, ok := reverseParameterAliasMap[actionName]; ok {
 		if originalName, ok := actionParams[paramName]; ok {
 			return originalName
@@ -87,7 +87,7 @@ func ReplaceActionParametersAliases(originalActionName string, rawParameters map
 	requestParameters := map[string]string{}
 
 	for paramName, paramValue := range rawParameters {
-		originalName := ReplaceActionParameterAlias(originalActionName, paramName)
+		originalName := replaceActionParameterAlias(originalActionName, paramName)
 		requestParameters[originalName] = paramValue
 	}
 
