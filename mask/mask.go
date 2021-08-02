@@ -37,6 +37,16 @@ func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionPa
 	return nil
 }
 
+func (m *Mask) IsParamRequired(actionName string, paramName string) string {
+	paramMask := MaskData.GetParameter(actionName, paramName)
+
+	if paramMask != nil && paramMask.Default != "" {
+		return paramMask.Default
+	}
+
+	return ""
+}
+
 type MaskedAction struct {
 	Alias      string                            `yaml:"alias,omitempty"`
 	Parameters map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
@@ -115,15 +125,4 @@ func ReplaceActionParametersAliases(originalActionName string, rawParameters map
 	}
 
 	return requestParameters
-}
-
-func IsParamRequired(actionName string, paramName string) string {
-	originalParamName := replaceActionParameterAlias(actionName, paramName)
-	isParamRequiredOverride := MaskData.Actions[actionName].Parameters[originalParamName].Default
-
-	if isParamRequiredOverride != "" {
-		return isParamRequiredOverride
-	}
-
-	return ""
 }

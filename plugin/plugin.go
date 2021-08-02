@@ -197,10 +197,10 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 			isParamRequired := pathParam.Required
 
 			if mask.MaskData != nil {
-				paramMask := mask.MaskData.GetParameter(actionName, paramName)
+				paramMaskDefault := mask.MaskData.IsParamRequired(actionName, paramName)
 
-				if paramMask != nil && paramMask.Default != "" {
-					isParamRequired, _ = strconv.ParseBool(mask.IsParamRequired(actionName, paramName))
+				if paramMaskDefault != "" {
+					isParamRequired, _ = strconv.ParseBool(paramMaskDefault)
 				}
 			}
 
@@ -283,6 +283,14 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				if propertyName == requiredParam {
 					isParamRequired = true
 					break
+				}
+			}
+
+			if mask.MaskData != nil {
+				paramMaskDefault := mask.MaskData.IsParamRequired(action.Name, fullParamPath)
+
+				if paramMaskDefault != "" {
+					isParamRequired, _ = strconv.ParseBool(paramMaskDefault)
 				}
 			}
 
