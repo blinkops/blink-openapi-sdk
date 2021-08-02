@@ -14,7 +14,6 @@ const (
 	RequestUrlKey      = "REQUEST_URL"
 	ArrayDelimiter     = ","
 	ContentTypeHeader  = "Content-Type"
-	MethodPost         = "POST"
 
 	ParamPlaceholderPrefix = "Example: "
 )

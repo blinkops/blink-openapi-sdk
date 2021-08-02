@@ -35,6 +35,7 @@ func parseHeaderParams(requestParameters map[string]string, operation *handlers.
 			}
 		}
 	}
+
 }
 
 func parsePathParams(requestParameters map[string]string, operation *handlers.OperationDefinition, path string) string {
@@ -49,6 +50,21 @@ func parsePathParams(requestParameters map[string]string, operation *handlers.Op
 	}
 
 	return requestPath
+}
+
+func parseQueryParams(requestParameters map[string]string, operation *handlers.OperationDefinition, request *http.Request) {
+	query := request.URL.Query()
+
+	for paramName, paramValue := range requestParameters {
+
+		for _, queryParam := range operation.QueryParams {
+			if paramName == queryParam.ParamName {
+				query.Add(paramName, paramValue)
+			}
+		}
+	}
+
+	request.URL.RawQuery = query.Encode()
 }
 
 func parseBodyParams(requestParameters map[string]string, operation *handlers.OperationDefinition) ([]byte, error) {
