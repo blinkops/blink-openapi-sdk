@@ -6,10 +6,10 @@ import (
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
 	"github.com/blinkops/blink-sdk/plugin"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/gorilla/schema"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -81,28 +81,26 @@ func parseBodyParams(requestParameters map[string]string, operation *handlers.Op
 	for paramName, paramValue := range requestParameters {
 		mapKeys := strings.Split(paramName, consts.BodyParamDelimiter)
 		buildRequestBody(mapKeys, defaultBody.Schema.OApiSchema, paramValue, requestBody)
+
 	}
-
-	marshaledBody, err := json.Marshal(requestBody)
-
-	if err != nil {
-		return err
-	}
-
-	request.Body = ioutil.NopCloser(strings.NewReader(string(marshaledBody)))
 
 	if defaultBody.ContentType == consts.URLEncoded {
-		encoder := schema.NewEncoder()
-		err = request.ParseForm()
-		if err != nil {
-			return err
+		values := url.Values{}
+		for paramName, paramValue := range requestBody {
+			values.Add(paramName, paramValue.(string))
 		}
-		err = encoder.Encode(request.Body, request.Form)
-		if err != nil {
-			return err
-		}
-	}
 
+		request.Body = ioutil.NopCloser(strings.NewReader(values.Encode()))
+
+	} else {
+		marshaledBody, err := json.Marshal(requestBody)
+
+		if err != nil {
+			return err
+		}
+
+		request.Body = ioutil.NopCloser(strings.NewReader(string(marshaledBody)))
+	}
 	return nil
 }
 
