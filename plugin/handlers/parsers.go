@@ -268,7 +268,7 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 	}
 
 	// If request JSON body isn't supported, just use the first available body type option
-	if !jsonBodyFound && len(bodyDefinitions) > 0 {
+	if !jsonBodyFound && len(body.Content) > 0 {
 		bodyDefinitions[0].DefaultBody = true
 	}
 
