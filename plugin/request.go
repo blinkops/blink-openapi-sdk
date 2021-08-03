@@ -8,6 +8,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	log "github.com/sirupsen/logrus"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -86,6 +87,11 @@ func parseBodyParams(requestParameters map[string]string, operation *handlers.Op
 	if err != nil {
 		return nil, err
 	}
+
+	if defaultBody.ContentType == consts.URLEncoded {
+		marshaledBody = []byte(url.QueryEscape(string(marshaledBody)))
+	}
+
 
 	return marshaledBody, nil
 }

@@ -9,6 +9,7 @@ const (
 
 	BodyParamDelimiter = "."
 	RequestBodyType    = "application/json"
+	URLEncoded         = "application/x-www-form-urlencoded"
 	ParamPrefix        = "{"
 	ParamSuffix        = "}"
 	RequestUrlKey      = "REQUEST_URL"
