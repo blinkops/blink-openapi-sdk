@@ -73,7 +73,7 @@ func parseBodyParams(requestParameters map[string]string, operation *handlers.Op
 
 	// Looking for a json type body schema
 	for _, paramBody := range operation.Bodies {
-		if strings.ToLower(paramBody.ContentType) == consts.RequestBodyType {
+		if paramBody.DefaultBody {
 			operationBody = &paramBody
 			break
 		}

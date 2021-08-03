@@ -263,7 +263,7 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 		Required:    body.Required,
 		Schema:      bodySchema,
 		NameTag:     defaultContentType,
-		ContentType: consts.RequestBodyType,
+		ContentType: defaultContentType,
 		DefaultBody: true,
 	}
 	bodyDefinitions = append(bodyDefinitions, bd)

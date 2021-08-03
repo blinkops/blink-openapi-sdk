@@ -26,7 +26,7 @@ func (m *Mask) GetAction(actionName string) *MaskedAction {
 func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionParameter {
 	originalActionName := ReplaceActionAlias(actionName)
 
-	if action, ok := m.Actions[ReplaceActionAlias(originalActionName)]; ok {
+	if action, ok := m.Actions[originalActionName]; ok {
 		if param, ok := action.Parameters[replaceActionParameterAlias(originalActionName, paramName)]; ok {
 			return param
 		}
