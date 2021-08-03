@@ -69,22 +69,16 @@ func parseQueryParams(requestParameters map[string]string, operation *handlers.O
 
 func parseBodyParams(requestParameters map[string]string, operation *handlers.OperationDefinition) ([]byte, error) {
 	requestBody := map[string]interface{}{}
-	operationBody := &handlers.RequestBodyDefinition{}
-
-	// Looking for a json type body schema
-	for _, paramBody := range operation.Bodies {
-		if paramBody.DefaultBody {
-			operationBody = &paramBody
-			break
-		}
-	}
+	defaultBody := operation.GetDefaultBody()
 
 	// Add "." delimited params as request body
 	for paramName, paramValue := range requestParameters {
-		if strings.Contains(paramName, consts.BodyParamDelimiter) {
-			mapKeys := strings.Split(paramName, consts.BodyParamDelimiter)
-			buildRequestBody(mapKeys, operationBody.Schema.OApiSchema, paramValue, requestBody)
+		if defaultBody == nil {
+			break
 		}
+
+		mapKeys := strings.Split(paramName, consts.BodyParamDelimiter)
+		buildRequestBody(mapKeys, defaultBody.Schema.OApiSchema, paramValue, requestBody)
 	}
 
 	marshaledBody, err := json.Marshal(requestBody)

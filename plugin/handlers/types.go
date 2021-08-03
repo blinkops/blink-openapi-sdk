@@ -39,11 +39,21 @@ func (o *OperationDefinition) AllParams() []parameterDefinition {
 	return result
 }
 
-func (o OperationDefinition) GetDefaultBodyType() string {
+func (o OperationDefinition) GetDefaultBody() *RequestBodyDefinition {
 	for _, paramBody := range o.Bodies {
 		if paramBody.DefaultBody {
-			return paramBody.ContentType
+			return &paramBody
 		}
+	}
+
+	return nil
+}
+
+func (o OperationDefinition) GetDefaultBodyType() string {
+	defaultBody := o.GetDefaultBody()
+
+	if o.GetDefaultBody() != nil {
+		return defaultBody.ContentType
 	}
 
 	return ""
