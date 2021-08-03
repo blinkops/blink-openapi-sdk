@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"bytes"
 	"encoding/json"
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/mask"
@@ -101,20 +100,18 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 		return nil, err
 	}
 
-	requestBody, err := parseBodyParams(requestParameters, operation)
+	request, err := http.NewRequest(operation.Method, operationUrl.String(), nil)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if operation.Method == http.MethodGet {
-		requestBody = nil
-	}
+	if operation.Method != http.MethodGet {
+		err = parseBodyParams(requestParameters, operation, request)
 
-	request, err := http.NewRequest(operation.Method, operationUrl.String(), bytes.NewBuffer(requestBody))
-
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if operation.Method == http.MethodPost {

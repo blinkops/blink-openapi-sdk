@@ -6,9 +6,10 @@ import (
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
 	"github.com/blinkops/blink-sdk/plugin"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/gorilla/schema"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 )
@@ -68,16 +69,16 @@ func parseQueryParams(requestParameters map[string]string, operation *handlers.O
 	request.URL.RawQuery = query.Encode()
 }
 
-func parseBodyParams(requestParameters map[string]string, operation *handlers.OperationDefinition) ([]byte, error) {
+func parseBodyParams(requestParameters map[string]string, operation *handlers.OperationDefinition, request *http.Request) error {
 	requestBody := map[string]interface{}{}
 	defaultBody := operation.GetDefaultBody()
 
+	if defaultBody == nil {
+		return nil
+	}
+
 	// Add "." delimited params as request body
 	for paramName, paramValue := range requestParameters {
-		if defaultBody == nil {
-			break
-		}
-
 		mapKeys := strings.Split(paramName, consts.BodyParamDelimiter)
 		buildRequestBody(mapKeys, defaultBody.Schema.OApiSchema, paramValue, requestBody)
 	}
@@ -85,15 +86,24 @@ func parseBodyParams(requestParameters map[string]string, operation *handlers.Op
 	marshaledBody, err := json.Marshal(requestBody)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
+
+	request.Body = ioutil.NopCloser(strings.NewReader(string(marshaledBody)))
 
 	if defaultBody.ContentType == consts.URLEncoded {
-		marshaledBody = []byte(url.QueryEscape(string(marshaledBody)))
+		encoder := schema.NewEncoder()
+		err = request.ParseForm()
+		if err != nil {
+			return err
+		}
+		err = encoder.Encode(request.Body, request.Form)
+		if err != nil {
+			return err
+		}
 	}
 
-
-	return marshaledBody, nil
+	return nil
 }
 
 // Build nested json request body from "." delimited parameters
