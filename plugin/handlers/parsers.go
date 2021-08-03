@@ -223,54 +223,50 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 
 	var bodyDefinitions []RequestBodyDefinition
 	var typeDefinitions []typeDefinition
-	jsonBodyFound := false
+	var defaultContentType string
+	var defaultContent *openapi3.MediaType
 
-	for contentType, content := range body.Content {
-		var tag string
-		var defaultBody bool
-
-		switch contentType {
-		case consts.RequestBodyType:
-			jsonBodyFound = true
-			tag = "JSON"
-			defaultBody = true
-		default:
-			continue
+	if _, ok := body.Content[consts.RequestBodyType]; !ok {
+		for defaultContentType, defaultContent = range body.Content {
+			break
 		}
-
-		bodyTypeName := operationID + tag + "Body"
-		bodySchema, err := generateGoSchema(content.Schema)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "error generating request body definition")
-		}
-
-		// If the request has a body, but it's not a user defined
-		// type under #/components, we'll define a type for it, so
-		// that we have an easy to use type for marshaling.
-		if bodySchema.RefType == "" {
-			td := typeDefinition{
-				typeName: bodyTypeName,
-				schema:   bodySchema,
-			}
-			typeDefinitions = append(typeDefinitions, td)
-			// The body schema now is a reference to a type
-			bodySchema.RefType = bodyTypeName
-		}
-
-		bd := RequestBodyDefinition{
-			Required:    body.Required,
-			Schema:      bodySchema,
-			NameTag:     tag,
-			ContentType: contentType,
-			DefaultBody: defaultBody,
-		}
-		bodyDefinitions = append(bodyDefinitions, bd)
+	} else {
+		defaultContentType = consts.RequestBodyType
+		defaultContent = body.Content[consts.RequestBodyType]
 	}
 
-	// If request JSON body isn't supported, just use the first available body type option
-	if !jsonBodyFound && len(body.Content) > 0 {
-		bodyDefinitions[0].DefaultBody = true
+	if defaultContent == nil {
+		return bodyDefinitions, typeDefinitions, nil
 	}
+
+	bodyTypeName := operationID + defaultContentType + "Body"
+	bodySchema, err := generateGoSchema(defaultContent.Schema)
+
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "error generating request body definition")
+	}
+
+	// If the request has a body, but it's not a user defined
+	// type under #/components, we'll define a type for it, so
+	// that we have an easy to use type for marshaling.
+	if bodySchema.RefType == "" {
+		td := typeDefinition{
+			typeName: bodyTypeName,
+			schema:   bodySchema,
+		}
+		typeDefinitions = append(typeDefinitions, td)
+		// The body schema now is a reference to a type
+		bodySchema.RefType = bodyTypeName
+	}
+
+	bd := RequestBodyDefinition{
+		Required:    body.Required,
+		Schema:      bodySchema,
+		NameTag:     defaultContentType,
+		ContentType: consts.RequestBodyType,
+		DefaultBody: true,
+	}
+	bodyDefinitions = append(bodyDefinitions, bd)
 
 	return bodyDefinitions, typeDefinitions, nil
 }
