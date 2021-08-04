@@ -16,7 +16,9 @@ type Mask struct {
 }
 
 func (m *Mask) GetAction(actionName string) *MaskedAction {
-	if action, ok := m.Actions[actionName]; ok {
+	originalActionName := ReplaceActionAlias(actionName)
+
+	if action, ok := m.Actions[originalActionName]; ok {
 		return action
 	}
 
@@ -24,8 +26,11 @@ func (m *Mask) GetAction(actionName string) *MaskedAction {
 }
 
 func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionParameter {
-	if action, ok := m.Actions[actionName]; ok {
-		if param, ok := action.Parameters[paramName]; ok {
+	originalActionName := ReplaceActionAlias(actionName)
+	originalParamName := replaceActionParameterAlias(actionName, paramName)
+
+	if action, ok := m.Actions[originalActionName]; ok {
+		if param, ok := action.Parameters[originalParamName]; ok {
 			return param
 		}
 
