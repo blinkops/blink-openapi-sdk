@@ -364,7 +364,7 @@ func buildResponse(response *http.Response) ([]byte, error) {
 		_ = response.Body.Close()
 	}()
 
-	s := map[string]string{}
+	var s map[string]interface{}
 
 	result, err := ioutil.ReadAll(response.Body)
 
