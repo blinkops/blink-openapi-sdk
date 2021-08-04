@@ -39,6 +39,8 @@ func (o *OperationDefinition) AllParams() []parameterDefinition {
 	return result
 }
 
+
+
 func (o OperationDefinition) GetDefaultBody() *RequestBodyDefinition {
 	for _, paramBody := range o.Bodies {
 		if paramBody.DefaultBody {
