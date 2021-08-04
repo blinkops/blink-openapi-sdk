@@ -84,14 +84,19 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	actionName = mask.ReplaceActionAlias(actionName)
 
 	operation := handlers.OperationDefinitions[actionName]
+
+	// get the parameters from the request.
 	rawParameters, err := executeActionRequest.GetParameters()
 
 	if err != nil {
 		return nil, err
 	}
 
+	// replace the raw parameters with their alias.
 	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters)
+
 	requestUrl = p.getRequestUrl(actionContext)
+
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
 
 	operationUrl, err := url.Parse(requestUrl + requestPath)
@@ -108,7 +113,6 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 
 	if operation.Method != http.MethodGet {
 		err = parseBodyParams(requestParameters, operation, request)
-
 		if err != nil {
 			return nil, err
 		}

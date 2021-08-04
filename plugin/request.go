@@ -14,6 +14,7 @@ import (
 	"strings"
 )
 
+// parseCookieParams puts the cookie params in the cookie part of the request.
 func parseCookieParams(requestParameters map[string]string, operation *handlers.OperationDefinition, request *http.Request) {
 	for paramName, paramValue := range requestParameters {
 		for _, cookieParam := range operation.CookieParams {
@@ -29,6 +30,7 @@ func parseCookieParams(requestParameters map[string]string, operation *handlers.
 	}
 }
 
+// parseHeaderParams puts the header params in the header of the request.
 func parseHeaderParams(requestParameters map[string]string, operation *handlers.OperationDefinition, request *http.Request) {
 	for paramName, paramValue := range requestParameters {
 		for _, headerParam := range operation.HeaderParams {
@@ -40,6 +42,7 @@ func parseHeaderParams(requestParameters map[string]string, operation *handlers.
 
 }
 
+// parsePathParams puts the path params path of the request.
 func parsePathParams(requestParameters map[string]string, operation *handlers.OperationDefinition, path string) string {
 	requestPath := path
 
@@ -54,6 +57,7 @@ func parsePathParams(requestParameters map[string]string, operation *handlers.Op
 	return requestPath
 }
 
+// parseQueryParams adds the query params as urlencoded to the request.
 func parseQueryParams(requestParameters map[string]string, operation *handlers.OperationDefinition, request *http.Request) {
 	query := request.URL.Query()
 
@@ -69,10 +73,14 @@ func parseQueryParams(requestParameters map[string]string, operation *handlers.O
 	request.URL.RawQuery = query.Encode()
 }
 
+// parseBodyParams add the params to to body of the request (JSON/ URL encoded params).
 func parseBodyParams(requestParameters map[string]string, operation *handlers.OperationDefinition, request *http.Request) error {
 	requestBody := map[string]interface{}{}
+
+	// the default body prefers to be json if available, otherwise will pick the first body.
 	defaultBody := operation.GetDefaultBody()
 
+	// some request do not have body like GET.
 	if defaultBody == nil {
 		return nil
 	}
@@ -84,21 +92,27 @@ func parseBodyParams(requestParameters map[string]string, operation *handlers.Op
 
 	}
 
+	// when the content type is url encoded, the values need be urlencoded and sent in the body.
 	if defaultBody.ContentType == consts.URLEncoded {
 		values := url.Values{}
+		// add the values
 		for paramName, paramValue := range requestBody {
 			values.Add(paramName, paramValue.(string))
 		}
 
+		//url encoded the values and add to the body.
 		request.Body = ioutil.NopCloser(strings.NewReader(values.Encode()))
 
 	} else {
+		// for any other content type, send the values as JSON.
 		marshaledBody, err := json.Marshal(requestBody)
 
 		if err != nil {
 			return err
 		}
 
+
+		// add the JSON to the body.
 		request.Body = ioutil.NopCloser(strings.NewReader(string(marshaledBody)))
 	}
 	return nil
