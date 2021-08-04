@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"bytes"
 	"encoding/json"
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/mask"
@@ -85,14 +84,19 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	actionName = mask.ReplaceActionAlias(actionName)
 
 	operation := handlers.OperationDefinitions[actionName]
+
+	// get the parameters from the request.
 	rawParameters, err := executeActionRequest.GetParameters()
 
 	if err != nil {
 		return nil, err
 	}
 
+	// replace the raw parameters with their alias.
 	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters)
+
 	requestUrl = p.getRequestUrl(actionContext)
+
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
 
 	operationUrl, err := url.Parse(requestUrl + requestPath)
@@ -101,20 +105,17 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 		return nil, err
 	}
 
-	requestBody, err := parseBodyParams(requestParameters, operation)
+	request, err := http.NewRequest(operation.Method, operationUrl.String(), nil)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if operation.Method == http.MethodGet {
-		requestBody = nil
-	}
-
-	request, err := http.NewRequest(operation.Method, operationUrl.String(), bytes.NewBuffer(requestBody))
-
-	if err != nil {
-		return nil, err
+	if operation.Method != http.MethodGet {
+		err = parseBodyParams(requestParameters, operation, request)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if operation.Method == http.MethodPost {
@@ -276,8 +277,7 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				}
 			}
 
-			// Skip masked params (always show required params with no default value)
-			if mask.MaskData != nil && !(isParamRequired && paramDefault == "") {
+			if mask.MaskData != nil {
 				if maskedParam := mask.MaskData.GetParameter(action.Name, fullParamPath); maskedParam == nil {
 					continue
 				} else {
