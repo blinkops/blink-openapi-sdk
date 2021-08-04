@@ -16,7 +16,7 @@ type Mask struct {
 }
 
 func (m *Mask) GetAction(actionName string) *MaskedAction {
-	if action, ok := m.Actions[ReplaceActionAlias(actionName)]; ok {
+	if action, ok := m.Actions[actionName]; ok {
 		return action
 	}
 
