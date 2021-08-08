@@ -13,6 +13,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -40,6 +43,88 @@ func (p *openApiPlugin) Describe() plugin.Description {
 func (p *openApiPlugin) GetActions() []plugin.Action {
 	log.Debug("Handling GetActions request!")
 	return p.actions
+}
+
+func (p *openApiPlugin) MakeMarkdown() error {
+	f, err := os.Create("actions.md")
+	if err != nil {
+		return err
+	}
+
+	defer f.Close()
+
+	BlinkHeader := "# Blink-" + p.Describe().Name + "\n"
+
+	_, err = f.WriteString(BlinkHeader)
+	if err != nil {
+		return err
+	}
+
+	actions := p.GetActions()
+
+	// sort the actions
+	// each time we parse the openapi the actions are added to the map in different order.
+	sort.Slice(actions, func(i, j int) bool {
+		return actions[i].Name < actions[j].Name
+	})
+
+	for _, action := range actions {
+
+		// count the number of parameters.
+		ParameterCount := len(action.Parameters)
+		b := " Parameters"
+		if ParameterCount == 1 {
+			b = " Parameter"
+		}
+
+		// write the action name description and parameters count
+		_, err = f.WriteString("## " + action.Name + "\n> #### " + action.Description + "\n" + "##### " + strconv.Itoa(ParameterCount) + b + "\n")
+		if err != nil {
+			return err
+		}
+
+		isLongDescription := false
+		var ParamBody strings.Builder
+
+		// write the action parameters and their description
+		for key, param := range action.Parameters {
+
+			// long description mess up tables
+			if len(param.Description) > 100 {
+				isLongDescription = true
+				_, err = ParamBody.WriteString("\n#### " + key + "\n* " + param.Description + "\n")
+				if err != nil {
+					return err
+				}
+			} else {
+				// add a table row
+				_, err = ParamBody.WriteString(key + "| " + param.Description + "\n")
+				if err != nil {
+					return err
+				}
+			}
+
+		}
+
+		// Don't show empty table for actions with no parameters or long description.
+		if (ParameterCount == 1 && isLongDescription) || ParameterCount == 0 {
+
+		} else {
+			// write the table header
+			_, err = f.WriteString("\nName | Description\n------------ | -------------\n")
+			if err != nil {
+				return err
+			}
+		}
+
+		// write the table to the file.
+		_, err = f.WriteString(ParamBody.String())
+		if err != nil {
+			return err
+		}
+
+	}
+	return nil
 }
 
 func (p *openApiPlugin) TestCredentials(map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
