@@ -355,30 +355,21 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 }
 
 func buildResponse(response *http.Response) ([]byte, error) {
-	var (
-		responseOutput string
-		responseError  string
-	)
-
 	defer func() {
 		_ = response.Body.Close()
 	}()
 
+	var jsonMap map[string]interface{}
+
 	result, err := ioutil.ReadAll(response.Body)
 
-	if response.StatusCode != http.StatusOK {
-		responseError = string(result)
-	} else {
-		responseOutput = string(result)
+	// unmarshal to check that the json body is valid.
+	err = json.Unmarshal(result, &jsonMap)
+	if err != nil{
+		return nil, err
 	}
 
-	structuredOutput := actionOutput{
-		Output: responseOutput,
-		Error:  responseError,
-	}
-
-	parsedOutput, err := json.Marshal(structuredOutput)
-
+	parsedOutput, err := json.Marshal(jsonMap)
 	if err != nil {
 		return nil, err
 	}
