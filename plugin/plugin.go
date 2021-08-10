@@ -42,12 +42,30 @@ func (p *openApiPlugin) GetActions() []plugin.Action {
 	return p.actions
 }
 
-func (p *openApiPlugin) TestCredentials(map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
-	// ToDo: replace with real implementation
-	return &plugin.CredentialsValidationResponse{
-		AreCredentialsValid:   true,
-		RawValidationResponse: nil,
-	}, nil
+func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
+
+	actions := p.GetActions()
+
+	for _, action := range actions {
+		if action.Name == "AuthTest"{
+
+			actionResponse, err := p.ExecuteAction(plugin.NewActionContext(nil, conn), &plugin.ExecuteActionRequest{Name: "AuthTest", Parameters: nil, Timeout: 3000 })
+			if err != nil {
+				return &plugin.CredentialsValidationResponse{
+					AreCredentialsValid:   actionResponse.ErrorCode == http.StatusOK,
+					RawValidationResponse: nil,
+				}, nil
+
+			}
+			return nil, err
+
+		}
+	}
+
+	//TODO: replace this later, add check if AuthTest in the parsing stage.
+	return nil, errors.New("no AuthTest function")
+
+
 }
 
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
@@ -76,7 +94,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return nil, err
 	}
 
-	return &plugin.ExecuteActionResponse{ErrorCode: 0, Result: result}, nil
+	return &plugin.ExecuteActionResponse{ErrorCode: int64(response.StatusCode), Result: result}, nil
 }
 
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
