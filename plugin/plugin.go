@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
@@ -15,7 +16,6 @@ import (
 	"net/url"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -46,14 +46,14 @@ func (p *openApiPlugin) GetActions() []plugin.Action {
 }
 
 func (p *openApiPlugin) MakeMarkdown() error {
-	f, err := os.Create("actions.md")
+	f, err := os.Create(consts.MarkdownFile)
 	if err != nil {
 		return err
 	}
 
 	defer f.Close()
 
-	BlinkHeader := "# Blink-" + p.Describe().Name + "\n"
+	BlinkHeader := fmt.Sprintf("%s%s \n", consts.BlinkPrefix, p.Describe().Name)
 
 	_, err = f.WriteString(BlinkHeader)
 	if err != nil {
@@ -62,23 +62,18 @@ func (p *openApiPlugin) MakeMarkdown() error {
 
 	actions := p.GetActions()
 
-	// sort the actions
-	// each time we parse the openapi the actions are added to the map in different order.
-	sort.Slice(actions, func(i, j int) bool {
-		return actions[i].Name < actions[j].Name
-	})
-
 	for _, action := range actions {
 
 		// count the number of parameters.
 		ParameterCount := len(action.Parameters)
-		b := " Parameters"
-		if ParameterCount == 1 {
-			b = " Parameter"
+		b := consts.Parameter
+		// Parameters in plural
+		if ParameterCount != 1 {
+			b += "s"
 		}
 
 		// write the action name description and parameters count
-		_, err = f.WriteString("## " + action.Name + "\n> #### " + action.Description + "\n" + "##### " + strconv.Itoa(ParameterCount) + b + "\n")
+		_, err = f.WriteString(fmt.Sprintf("## %s \n>%s ##### \n##### %d %s\n", action.Name, action.Description, ParameterCount, b))
 		if err != nil {
 			return err
 		}
@@ -86,19 +81,31 @@ func (p *openApiPlugin) MakeMarkdown() error {
 		isLongDescription := false
 		var ParamBody strings.Builder
 
+		// sort the parameters of the action.
+		keys := make([]string, 0, len(action.Parameters))
+
+		for k := range action.Parameters {
+			keys = append(keys, k)
+
+		}
+
+		sort.Strings(keys)
+
 		// write the action parameters and their description
-		for key, param := range action.Parameters {
+		for _, key := range keys {
+
+			param := action.Parameters[key]
 
 			// long description mess up tables
-			if len(param.Description) > 100 {
+			if len(param.Description) >= 100 {
 				isLongDescription = true
-				_, err = ParamBody.WriteString("\n#### " + key + "\n* " + param.Description + "\n")
+				_, err = ParamBody.WriteString(fmt.Sprintf("\n#### %s\n* %s\n", key, param.Description))
 				if err != nil {
 					return err
 				}
 			} else {
 				// add a table row
-				_, err = ParamBody.WriteString(key + "| " + param.Description + "\n")
+				_, err = ParamBody.WriteString(fmt.Sprintf("| %s | %s |</br>", key, param.Description))
 				if err != nil {
 					return err
 				}
@@ -111,7 +118,7 @@ func (p *openApiPlugin) MakeMarkdown() error {
 
 		} else {
 			// write the table header
-			_, err = f.WriteString("\nName | Description\n------------ | -------------\n")
+			_, err = f.WriteString(consts.TableHeader)
 			if err != nil {
 				return err
 			}
@@ -311,6 +318,12 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 		actions = append(actions, action)
 	}
 
+	// sort the actions
+	// each time we parse the openapi the actions are added to the map in different order.
+	sort.Slice(actions, func(i, j int) bool {
+		return actions[i].Name < actions[j].Name
+	})
+
 	return &openApiPlugin{
 		actions: actions,
 		description: plugin.Description{
@@ -450,7 +463,7 @@ func buildResponse(response *http.Response) ([]byte, error) {
 
 	// unmarshal to check that the json body is valid.
 	err = json.Unmarshal(result, &jsonMap)
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 

@@ -17,4 +17,9 @@ const (
 	ContentTypeHeader  = "Content-Type"
 
 	ParamPlaceholderPrefix = "Example: "
+
+	TableHeader  = "\nName | Description\n------------ | -------------\n"
+	BlinkPrefix  = "# Blink-"
+	MarkdownFile = "actions.md"
+	Parameter    = "Parameter"
 )
