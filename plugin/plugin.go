@@ -22,9 +22,10 @@ var (
 )
 
 type openApiPlugin struct {
-	actions     []plugin.Action
-	description plugin.Description
-	openApiFile string
+	actions             []plugin.Action
+	description         plugin.Description
+	openApiFile         string
+	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
 }
 
 type actionOutput struct {
@@ -44,32 +45,7 @@ func (p *openApiPlugin) GetActions() []plugin.Action {
 
 func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
 
-	actionResponse, err := p.ExecuteAction(plugin.NewActionContext(nil, conn), &plugin.ExecuteActionRequest{Name: "AuthTest", Parameters: nil, Timeout: 3000})
-	if err != nil {
-		return &plugin.CredentialsValidationResponse{
-			AreCredentialsValid:   actionResponse.ErrorCode == http.StatusOK,
-			RawValidationResponse: nil,
-		}, nil
-
-	}
-
-	return &plugin.CredentialsValidationResponse{
-		AreCredentialsValid:   false,
-		RawValidationResponse: nil,
-	}, nil
-
-	//actions := p.GetActions()
-	//
-	//for _, action := range actions {
-	//	if action.Name == "AuthTest"{
-	//
-	//
-	//
-	//	}
-	//}
-	//
-	////TODO: replace this later, add check if AuthTest in the parsing stage.
-	//return nil, errors.New("no AuthTest function")
+	return p.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
 
 }
 
@@ -156,7 +132,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	return request, nil
 }
 
-func NewOpenApiPlugin(name string, provider string, tags []string, connectionTypes map[string]connections.Connection, openApiFile string, maskFile string) (*openApiPlugin, error) {
+func NewOpenApiPlugin(name string, provider string, tags []string, connectionTypes map[string]connections.Connection, openApiFile string, maskFile string, testFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)) (*openApiPlugin, error) {
 	var actions []plugin.Action
 
 	openApi, err := loadOpenApi(openApiFile)
@@ -250,7 +226,8 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 	}
 
 	return &openApiPlugin{
-		actions: actions,
+		TestCredentialsFunc: testFunc,
+		actions:             actions,
 		description: plugin.Description{
 			Name:        name,
 			Description: openApi.Info.Description,
