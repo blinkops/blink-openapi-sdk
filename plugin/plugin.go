@@ -44,27 +44,32 @@ func (p *openApiPlugin) GetActions() []plugin.Action {
 
 func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
 
-	actions := p.GetActions()
+	actionResponse, err := p.ExecuteAction(plugin.NewActionContext(nil, conn), &plugin.ExecuteActionRequest{Name: "AuthTest", Parameters: nil, Timeout: 3000})
+	if err != nil {
+		return &plugin.CredentialsValidationResponse{
+			AreCredentialsValid:   actionResponse.ErrorCode == http.StatusOK,
+			RawValidationResponse: nil,
+		}, nil
 
-	for _, action := range actions {
-		if action.Name == "AuthTest"{
-
-			actionResponse, err := p.ExecuteAction(plugin.NewActionContext(nil, conn), &plugin.ExecuteActionRequest{Name: "AuthTest", Parameters: nil, Timeout: 3000 })
-			if err != nil {
-				return &plugin.CredentialsValidationResponse{
-					AreCredentialsValid:   actionResponse.ErrorCode == http.StatusOK,
-					RawValidationResponse: nil,
-				}, nil
-
-			}
-			return nil, err
-
-		}
 	}
 
-	//TODO: replace this later, add check if AuthTest in the parsing stage.
-	return nil, errors.New("no AuthTest function")
+	return &plugin.CredentialsValidationResponse{
+		AreCredentialsValid:   false,
+		RawValidationResponse: nil,
+	}, nil
 
+	//actions := p.GetActions()
+	//
+	//for _, action := range actions {
+	//	if action.Name == "AuthTest"{
+	//
+	//
+	//
+	//	}
+	//}
+	//
+	////TODO: replace this later, add check if AuthTest in the parsing stage.
+	//return nil, errors.New("no AuthTest function")
 
 }
 
@@ -383,7 +388,7 @@ func buildResponse(response *http.Response) ([]byte, error) {
 
 	// unmarshal to check that the json body is valid.
 	err = json.Unmarshal(result, &jsonMap)
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 
