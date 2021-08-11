@@ -165,8 +165,8 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // Credentials should be saved as headerName -> value according to the api definition
-func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request) error {
-	securityHeaders, err := p.getCredentials(actionContext)
+func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string) error {
+	securityHeaders, err := GetCredentials(actionContext, provider)
 
 	if err != nil {
 		return err
@@ -195,8 +195,8 @@ func (p *openApiPlugin) getRequestUrl(actionContext *plugin.ActionContext) strin
 	return requestUrl
 }
 
-func (p *openApiPlugin) getCredentials(actionContext *plugin.ActionContext) (map[string]interface{}, error) {
-	connection, err := actionContext.GetCredentials(p.Describe().Provider)
+func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
+	connection, err := actionContext.GetCredentials(provider)
 
 	if err != nil {
 		return nil, err

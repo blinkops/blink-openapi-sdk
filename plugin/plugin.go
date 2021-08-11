@@ -59,7 +59,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return nil, err
 	}
 
-	if err = p.setAuthenticationHeaders(actionContext, openApiRequest); err != nil {
+	if err = SetAuthenticationHeaders(actionContext, openApiRequest, p.Describe().Provider); err != nil {
 		return nil, err
 	}
 
