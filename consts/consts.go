@@ -17,5 +17,4 @@ const (
 	ContentTypeHeader  = "Content-Type"
 
 	ParamPlaceholderPrefix = "Example: "
-	NotOK                  = "NotOk"
 )

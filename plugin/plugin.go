@@ -58,18 +58,14 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	result, err := ExecuteRequest(actionContext, openApiRequest, p.Describe().Provider, request.Timeout)
+	res := &plugin.ExecuteActionResponse{ErrorCode: 0, Result: result}
+
 	if err != nil {
-
-		if err.Error() == consts.NotOK{
-			return &plugin.ExecuteActionResponse{ErrorCode: 1, Result: result}, nil
-		}
-
-		return nil, err
+		res.ErrorCode=1
+		res.Result=[]byte(err.Error())
 	}
 
-
-
-	return &plugin.ExecuteActionResponse{ErrorCode: 0, Result: result}, nil
+	return res, nil
 }
 
 func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, timeout int32) ([]byte, error) {
@@ -87,18 +83,15 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 		return nil, err
 	}
 
-
-
 	result, err := buildResponse(response)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if response.StatusCode != http.StatusOK{
-		return result, errors.New(consts.NotOK)
+	if response.StatusCode != http.StatusOK {
+		return nil, errors.New(string(result))
 	}
-
 
 	return result, nil
 }
