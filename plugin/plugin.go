@@ -58,9 +58,16 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	result, err := ExecuteRequest(actionContext, openApiRequest, p.Describe().Provider, request.Timeout)
-	if err != nil{
+	if err != nil {
+
+		if err.Error() == consts.NotOK{
+			return &plugin.ExecuteActionResponse{ErrorCode: 1, Result: result}, nil
+		}
+
 		return nil, err
 	}
+
+
 
 	return &plugin.ExecuteActionResponse{ErrorCode: 0, Result: result}, nil
 }
@@ -80,11 +87,19 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 		return nil, err
 	}
 
+
+
 	result, err := buildResponse(response)
 
 	if err != nil {
 		return nil, err
 	}
+
+	if response.StatusCode != http.StatusOK{
+		return result, errors.New(consts.NotOK)
+	}
+
+
 	return result, nil
 }
 
