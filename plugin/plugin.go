@@ -50,20 +50,31 @@ func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionIn
 }
 
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
-	client := &http.Client{
-		Timeout: time.Duration(request.Timeout) * time.Second,
-	}
+
 	openApiRequest, err := p.parseActionRequest(actionContext, request)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if err = SetAuthenticationHeaders(actionContext, openApiRequest, p.Describe().Provider); err != nil {
+	result, err := ExecuteRequest(actionContext, openApiRequest, p.Describe().Provider, request.Timeout)
+	if err != nil{
 		return nil, err
 	}
 
-	response, err := client.Do(openApiRequest)
+	return &plugin.ExecuteActionResponse{ErrorCode: 0, Result: result}, nil
+}
+
+func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, timeout int32) ([]byte, error) {
+	client := &http.Client{
+		Timeout: time.Duration(timeout) * time.Second,
+	}
+
+	if err := SetAuthenticationHeaders(actionContext, httpRequest, providerName); err != nil {
+		return nil, err
+	}
+
+	response, err := client.Do(httpRequest)
 
 	if err != nil {
 		return nil, err
@@ -74,8 +85,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	if err != nil {
 		return nil, err
 	}
-
-	return &plugin.ExecuteActionResponse{ErrorCode: 0, Result: result}, nil
+	return result, nil
 }
 
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
