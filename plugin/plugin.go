@@ -26,6 +26,7 @@ type openApiPlugin struct {
 	description         plugin.Description
 	openApiFile         string
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
+	ValidateResponse func(jsonMap map[string]interface{})(valid bool, msg []byte)
 }
 
 type actionOutput struct {
@@ -63,6 +64,24 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	if err != nil {
 		res.ErrorCode=1
 		res.Result=[]byte(err.Error())
+		return res,nil
+	}
+
+	var jsonMap map[string]interface{}
+
+	// unmarshal to check that the json body is valid.
+	err = json.Unmarshal(result, &jsonMap)
+	if err != nil {
+		res.ErrorCode=1
+		res.Result=[]byte(err.Error())
+		return res,nil
+	}
+
+	valid, msg := p.ValidateResponse(jsonMap)
+
+	if !valid{
+		res.ErrorCode=1
+		res.Result=msg
 	}
 
 	return res, nil
@@ -394,3 +413,4 @@ func buildResponse(response *http.Response) ([]byte, error) {
 
 	return parsedOutput, nil
 }
+
