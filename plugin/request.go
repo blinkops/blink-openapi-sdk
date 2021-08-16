@@ -179,16 +179,21 @@ func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http
 				// we want to help the user by adding prefixes he might have missed
 				// for example
 				// Bearer <TOKEN>
-				if !strings.Contains(headerValueString, val) {
-					headerValueString = val + headerValueString
-				}
 
-				// for fields containing url we want to ensure the url is correct
-				// and fix mistakes that may occur like typing http while the actual protocol should be https.
-				u, err := url.Parse(headerValueString)
-				if err == nil {
-					u.Scheme = val
-					headerValueString = u.String()
+				if !strings.HasPrefix(headerValueString, val) { // check what prefix the user doesn't have
+
+					// if it doesn't have https prefix
+					if val == consts.HTTPsPrefix {
+						// try replacing http with http, if no http nothing will change.
+						strings.Replace(headerValueString, consts.HTTPPrefix, consts.HTTPsPrefix, 1)
+					} else if val == consts.BearerPrefix { // doesn't have bearer prefix
+						// prepend the bearer prefix
+						headerValueString = consts.BearerPrefix + headerValueString
+					} else {
+						// prepend the https prefix
+						headerValueString = consts.HTTPsPrefix + headerValueString
+					}
+
 				}
 
 			}
