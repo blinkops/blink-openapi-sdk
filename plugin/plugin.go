@@ -107,7 +107,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 }
 
 func FixRequestURL(r *http.Request){
-	if !strings.HasPrefix(r.RequestURI, consts.HTTPsPrefix) { // check what prefix the user doesn't have
+	if strings.HasPrefix(r.RequestURI, consts.HTTPsPrefix) { // check what prefix the user doesn't have
 		strings.Replace(r.RequestURI, consts.HTTPPrefix, consts.HTTPsPrefix, 1)
 	} else{
 		r.RequestURI = consts.HTTPsPrefix + r.RequestURI
