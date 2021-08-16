@@ -111,7 +111,6 @@ func parseBodyParams(requestParameters map[string]string, operation *handlers.Op
 			return err
 		}
 
-
 		// add the JSON to the body.
 		request.Body = ioutil.NopCloser(strings.NewReader(string(marshaledBody)))
 	}
@@ -165,7 +164,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // Credentials should be saved as headerName -> value according to the api definition
-func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string) error {
+func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string, HeaderPrefixes map[string]string) error {
 	securityHeaders, err := GetCredentials(actionContext, provider)
 
 	if err != nil {
@@ -174,6 +173,26 @@ func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http
 
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
+
+			if val, ok := HeaderPrefixes[header]; ok {
+
+				// we want to help the user by adding prefixes he might have missed
+				// for example
+				// Bearer <TOKEN>
+				if !strings.Contains(headerValueString, val) {
+					headerValueString = val + headerValueString
+				}
+
+				// for fields containing url we want to ensure the url is correct
+				// and fix mistakes that may occur like typing http while the actual protocol should be https.
+				u, err := url.Parse(headerValueString)
+				if err == nil {
+					u.Scheme = val
+					headerValueString = u.String()
+				}
+
+			}
+
 			request.Header.Set(strings.ToUpper(header), headerValueString)
 		}
 	}
