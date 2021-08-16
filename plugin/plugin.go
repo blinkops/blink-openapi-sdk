@@ -107,19 +107,6 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 }
 
 func FixRequestURL(r *http.Request) error{
-	//r.URL.Scheme = "HTTPS"
-
-	// check if url has https prefix
-	//
-
-	//if !strings.HasPrefix(r.URL.String(), consts.HTTPsPrefix) { // check what prefix the user doesn't have
-	//
-	//	// replace http with https
-	//	strings.Replace(r.URL.String(), consts.HTTPPrefix, consts.HTTPsPrefix, 1)
-	//
-	//} else{
-	//	r.URL.Path = consts.HTTPsPrefix + r.URL.Path
-	//}
 
 	r.URL.Scheme="https"
 
@@ -155,10 +142,6 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 
 	if err != nil {
 		return nil, err
-	}
-
-	if response.StatusCode != http.StatusOK {
-		return nil, errors.New(string(result))
 	}
 
 	return result, nil
