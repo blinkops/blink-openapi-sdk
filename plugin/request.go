@@ -173,7 +173,7 @@ func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http
 
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
-
+			header = strings.ToUpper(header)
 			if val, ok := HeaderPrefixes[header]; ok {
 
 				// we want to help the user by adding prefixes he might have missed
@@ -193,7 +193,7 @@ func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http
 
 			}
 
-			request.Header.Set(strings.ToUpper(header), headerValueString)
+			request.Header.Set(header, headerValueString)
 		}
 	}
 
