@@ -107,7 +107,12 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 }
 
 func FixRequestURL(r *http.Request){
-	r.URL.Scheme= "https"
+	if strings.HasPrefix(r.URL.Path, consts.HTTPsPrefix) { // check what prefix the user doesn't have
+		strings.Replace(r.URL.Path, consts.HTTPPrefix, consts.HTTPsPrefix, 1)
+	} else{
+		r.URL.Path = consts.HTTPsPrefix + r.URL.Path
+	}
+
 }
 
 func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, HeaderPrefixes map[string]string, timeout int32) ([]byte, error) {
