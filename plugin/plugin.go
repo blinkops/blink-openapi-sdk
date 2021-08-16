@@ -180,7 +180,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	// replace the raw parameters with their alias.
 	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters)
 
-	requestUrl = p.getRequestUrl(actionContext)
+	requestUrl = GetRequestUrl(actionContext, p.Describe().Provider)
 
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
 

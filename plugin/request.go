@@ -193,8 +193,8 @@ func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http
 	return nil
 }
 
-func (p *openApiPlugin) getRequestUrl(actionContext *plugin.ActionContext) string {
-	connection, err := actionContext.GetCredentials(p.Describe().Provider)
+func GetRequestUrl(actionContext *plugin.ActionContext, provider string) string {
+	connection, err := actionContext.GetCredentials(provider)
 
 	if err != nil {
 		return requestUrl
