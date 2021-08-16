@@ -106,6 +106,15 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	return res, nil
 }
 
+func FixRequestURL(r *http.Request){
+	if !strings.HasPrefix(r.RequestURI, consts.HTTPsPrefix) { // check what prefix the user doesn't have
+		strings.Replace(r.RequestURI, consts.HTTPPrefix, consts.HTTPsPrefix, 1)
+	} else{
+		r.RequestURI = consts.HTTPsPrefix + r.RequestURI
+	}
+
+}
+
 func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, HeaderPrefixes map[string]string, timeout int32) ([]byte, error) {
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
@@ -114,6 +123,8 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	if err := SetAuthenticationHeaders(actionContext, httpRequest, providerName, HeaderPrefixes); err != nil {
 		return nil, err
 	}
+
+	FixRequestURL(httpRequest)
 
 	response, err := client.Do(httpRequest)
 
