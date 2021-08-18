@@ -207,7 +207,7 @@ func GetRequestUrl(actionContext *plugin.ActionContext, provider string) string 
 	return requestUrl
 }
 
-func GetCredentials(actionContext *plugin.ActionContext, provider string) (jsonMap, error) {
+func GetCredentials(actionContext *plugin.ActionContext, provider string) (JSONMap, error) {
 	connection, err := actionContext.GetCredentials(provider)
 
 	if err != nil {

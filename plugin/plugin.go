@@ -23,14 +23,14 @@ var (
 
 type HeaderPrefixes map[string]string
 
-type jsonMap map[string]interface{}
+type JSONMap map[string]interface{}
 
 type openApiPlugin struct {
 	actions             []plugin.Action
 	description         plugin.Description
 	openApiFile         string
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
-	ValidateResponse    func(jsonMap) (bool, []byte)
+	ValidateResponse    func(JSONMap) (bool, []byte)
 	HeaderPrefixes HeaderPrefixes
 }
 
@@ -46,7 +46,7 @@ type PluginMetadata struct {
 
 type PluginChecks struct {
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
-	ValidateResponse    func(jsonMap jsonMap) (bool,[]byte)
+	ValidateResponse    func(JSONMap JSONMap) (bool,[]byte)
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
@@ -86,7 +86,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 
 	// if no validate response function was passed no response check will occur.
 	if p.ValidateResponse != nil {
-		var data jsonMap
+		var data JSONMap
 
 		if err = json.Unmarshal(result, &data); err != nil {
 			res.ErrorCode = consts.Error
@@ -432,13 +432,13 @@ func buildResponse(response *http.Response) ([]byte, error) {
 		_ = response.Body.Close()
 	}()
 
-	var data jsonMap
+	var data JSONMap
 
 	result, err := ioutil.ReadAll(response.Body)
 
 	parsedOutput, err := checkValid(result, data)
 	if err != nil {
-		var data []jsonMap
+		var data []JSONMap
 
 		parsedOutput, err = checkValid(result, data)
 
