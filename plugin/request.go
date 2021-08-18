@@ -164,7 +164,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // Credentials should be saved as headerName -> value according to the api definition
-func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string, HeaderPrefixes map[string]string) error {
+func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string, HeaderPrefixes HeaderPrefixes) error {
 	securityHeaders, err := GetCredentials(actionContext, provider)
 
 	if err != nil {
@@ -207,7 +207,7 @@ func GetRequestUrl(actionContext *plugin.ActionContext, provider string) string 
 	return requestUrl
 }
 
-func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
+func GetCredentials(actionContext *plugin.ActionContext, provider string) (jsonMap, error) {
 	connection, err := actionContext.GetCredentials(provider)
 
 	if err != nil {
