@@ -436,12 +436,24 @@ func buildResponse(response *http.Response) ([]byte, error) {
 
 	result, err := ioutil.ReadAll(response.Body)
 
-	// unmarshal to check that the json body is valid.
-	err = json.Unmarshal(result, &data)
+	parsedOutput, err := checkValid(result, data)
+	if err != nil {
+		var data []jsonMap
+
+		parsedOutput, err = checkValid(result, data)
+
+	}
+
+	return parsedOutput, nil
+}
+
+func checkValid(result []byte,data interface{}) ([]byte, error){
+
+	err := json.Unmarshal(result, &data)
+
 	if err != nil {
 		return nil, err
 	}
-
 	parsedOutput, err := json.Marshal(data)
 	if err != nil {
 		return nil, err

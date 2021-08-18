@@ -18,9 +18,6 @@ const (
 
 	ParamPlaceholderPrefix = "Example: "
 
-	HTTPPrefix  = "http://"
-	HTTPsPrefix = "https://"
-	BearerPrefix = "Bearer "
 	Error = 1
 	OK    = 0
 )
