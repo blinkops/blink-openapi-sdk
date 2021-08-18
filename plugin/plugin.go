@@ -21,15 +21,32 @@ var (
 	requestUrl string
 )
 
+type HeaderPrefixes map[string]string
+
+type jsonMap map[string]interface{}
+
 type openApiPlugin struct {
-	actions     []plugin.Action
-	description plugin.Description
-	openApiFile string
+	actions             []plugin.Action
+	description         plugin.Description
+	openApiFile         string
+	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
+	ValidateResponse    func(jsonMap) (bool, []byte)
+	HeaderPrefixes HeaderPrefixes
 }
 
-type actionOutput struct {
-	Output string `json:"output"`
-	Error  string `json:"error"`
+type PluginMetadata struct {
+	Name           string
+	Provider       string
+	MaskFile       string
+	OpenApiFile    string
+	tokenPrefix    string
+	Tags           []string
+	HeaderPrefixes HeaderPrefixes
+}
+
+type PluginChecks struct {
+	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
+	ValidateResponse    func(jsonMap jsonMap) (bool,[]byte)
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
@@ -42,29 +59,77 @@ func (p *openApiPlugin) GetActions() []plugin.Action {
 	return p.actions
 }
 
-func (p *openApiPlugin) TestCredentials(map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
-	// ToDo: replace with real implementation
-	return &plugin.CredentialsValidationResponse{
-		AreCredentialsValid:   true,
-		RawValidationResponse: nil,
-	}, nil
+func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
+
+	return p.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
+
 }
 
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
-	client := &http.Client{
-		Timeout: time.Duration(request.Timeout) * time.Second,
-	}
+	res := &plugin.ExecuteActionResponse{ErrorCode: consts.OK}
 	openApiRequest, err := p.parseActionRequest(actionContext, request)
 
 	if err != nil {
+		res.ErrorCode = consts.Error
+		res.Result = []byte(err.Error())
+		return res, nil
+	}
+
+	result, err := ExecuteRequest(actionContext, openApiRequest, p.Describe().Provider, p.HeaderPrefixes, request.Timeout)
+	res.Result = result
+
+	if err != nil {
+		res.ErrorCode = consts.Error
+		res.Result = []byte(err.Error())
+		return res, nil
+	}
+
+	// if no validate response function was passed no response check will occur.
+	if p.ValidateResponse != nil {
+		var data jsonMap
+
+		if err = json.Unmarshal(result, &data); err != nil {
+			res.ErrorCode = consts.Error
+			res.Result = []byte(err.Error())
+			return res, nil
+		}
+
+		if valid, msg := p.ValidateResponse(data); !valid {
+			res.ErrorCode = consts.Error
+			res.Result = msg
+		}
+	}
+
+	return res, nil
+}
+
+func FixRequestURL(r *http.Request) error{
+
+	r.URL.Scheme="https"
+
+	val, err := url.Parse(r.URL.String())
+	r.URL = val
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, HeaderPrefixes map[string]string, timeout int32) ([]byte, error) {
+	client := &http.Client{
+		Timeout: time.Duration(timeout) * time.Second,
+	}
+
+	if err := SetAuthenticationHeaders(actionContext, httpRequest, providerName, HeaderPrefixes); err != nil {
 		return nil, err
 	}
 
-	if err = p.setAuthenticationHeaders(actionContext, openApiRequest); err != nil {
+	if err := FixRequestURL(httpRequest); err !=nil{
 		return nil, err
 	}
 
-	response, err := client.Do(openApiRequest)
+	response, err := client.Do(httpRequest)
 
 	if err != nil {
 		return nil, err
@@ -76,7 +141,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return nil, err
 	}
 
-	return &plugin.ExecuteActionResponse{ErrorCode: 0, Result: result}, nil
+	return result, nil
 }
 
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
@@ -95,7 +160,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	// replace the raw parameters with their alias.
 	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters)
 
-	requestUrl = p.getRequestUrl(actionContext)
+	requestUrl = GetRequestUrl(actionContext, p.Describe().Provider)
 
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
 
@@ -133,16 +198,21 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	return request, nil
 }
 
-func NewOpenApiPlugin(name string, provider string, tags []string, connectionTypes map[string]connections.Connection, openApiFile string, maskFile string) (*openApiPlugin, error) {
+func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*openApiPlugin, error) {
+
+	if checks.TestCredentialsFunc == nil {
+		panic("TestCredentials function is missing")
+	}
+
 	var actions []plugin.Action
 
-	openApi, err := loadOpenApi(openApiFile)
+	openApi, err := loadOpenApi(meta.OpenApiFile)
 
 	if err != nil {
 		return nil, err
 	}
 
-	err = mask.ParseMask(maskFile)
+	err = mask.ParseMask(meta.MaskFile)
 
 	if err != nil {
 		return nil, err
@@ -227,15 +297,18 @@ func NewOpenApiPlugin(name string, provider string, tags []string, connectionTyp
 	}
 
 	return &openApiPlugin{
-		actions: actions,
+		TestCredentialsFunc: checks.TestCredentialsFunc,
+		ValidateResponse:    checks.ValidateResponse,
+		actions:             actions,
+		HeaderPrefixes:      meta.HeaderPrefixes,
 		description: plugin.Description{
-			Name:        name,
+			Name:        meta.Name,
 			Description: openApi.Info.Description,
-			Tags:        tags,
+			Tags:        meta.Tags,
 			Connections: connectionTypes,
-			Provider:    provider,
+			Provider:    meta.Provider,
 		},
-		openApiFile: openApiFile,
+		openApiFile: meta.OpenApiFile,
 	}, nil
 }
 
@@ -359,17 +432,17 @@ func buildResponse(response *http.Response) ([]byte, error) {
 		_ = response.Body.Close()
 	}()
 
-	var jsonMap map[string]interface{}
+	var data jsonMap
 
 	result, err := ioutil.ReadAll(response.Body)
 
 	// unmarshal to check that the json body is valid.
-	err = json.Unmarshal(result, &jsonMap)
-	if err != nil{
+	err = json.Unmarshal(result, &data)
+	if err != nil {
 		return nil, err
 	}
 
-	parsedOutput, err := json.Marshal(jsonMap)
+	parsedOutput, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}

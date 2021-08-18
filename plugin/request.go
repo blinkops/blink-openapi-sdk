@@ -111,7 +111,6 @@ func parseBodyParams(requestParameters map[string]string, operation *handlers.Op
 			return err
 		}
 
-
 		// add the JSON to the body.
 		request.Body = ioutil.NopCloser(strings.NewReader(string(marshaledBody)))
 	}
@@ -165,8 +164,8 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // Credentials should be saved as headerName -> value according to the api definition
-func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request) error {
-	securityHeaders, err := p.getCredentials(actionContext)
+func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string, HeaderPrefixes HeaderPrefixes) error {
+	securityHeaders, err := GetCredentials(actionContext, provider)
 
 	if err != nil {
 		return err
@@ -174,15 +173,28 @@ func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionCon
 
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
-			request.Header.Set(strings.ToUpper(header), headerValueString)
+			header = strings.ToUpper(header)
+			if val, ok := HeaderPrefixes[header]; ok {
+
+				// we want to help the user by adding prefixes he might have missed
+				// for example
+				// Bearer <TOKEN>
+				if !strings.HasPrefix(headerValueString, val) { // check what prefix the user doesn't have
+					// add the prefix
+					headerValueString = val + headerValueString
+				}
+
+			}
+
+			request.Header.Set(header, headerValueString)
 		}
 	}
 
 	return nil
 }
 
-func (p *openApiPlugin) getRequestUrl(actionContext *plugin.ActionContext) string {
-	connection, err := actionContext.GetCredentials(p.Describe().Provider)
+func GetRequestUrl(actionContext *plugin.ActionContext, provider string) string {
+	connection, err := actionContext.GetCredentials(provider)
 
 	if err != nil {
 		return requestUrl
@@ -195,8 +207,8 @@ func (p *openApiPlugin) getRequestUrl(actionContext *plugin.ActionContext) strin
 	return requestUrl
 }
 
-func (p *openApiPlugin) getCredentials(actionContext *plugin.ActionContext) (map[string]interface{}, error) {
-	connection, err := actionContext.GetCredentials(p.Describe().Provider)
+func GetCredentials(actionContext *plugin.ActionContext, provider string) (jsonMap, error) {
+	connection, err := actionContext.GetCredentials(provider)
 
 	if err != nil {
 		return nil, err
