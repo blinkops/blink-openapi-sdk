@@ -23,7 +23,7 @@ var (
 
 type HeaderPrefixes map[string]string
 
-type JSONMap map[string]interface{}
+type JSONMap interface{}
 
 type openApiPlugin struct {
 	actions             []plugin.Action
@@ -438,16 +438,13 @@ func buildResponse(response *http.Response) ([]byte, error) {
 
 	parsedOutput, err := checkValid(result, data)
 	if err != nil {
-		var data []JSONMap
-
-		parsedOutput, err = checkValid(result, data)
-
+		return nil, err
 	}
 
 	return parsedOutput, nil
 }
 
-func checkValid(result []byte,data interface{}) ([]byte, error){
+func checkValid(result []byte,data JSONMap) ([]byte, error){
 
 	err := json.Unmarshal(result, &data)
 
