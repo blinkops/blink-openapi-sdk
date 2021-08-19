@@ -31,7 +31,7 @@ type openApiPlugin struct {
 	openApiFile         string
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
 	ValidateResponse    func(JSONMap) (bool, []byte)
-	HeaderPrefixes HeaderPrefixes
+	HeaderPrefixes      HeaderPrefixes
 }
 
 type PluginMetadata struct {
@@ -46,7 +46,7 @@ type PluginMetadata struct {
 
 type PluginChecks struct {
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
-	ValidateResponse    func(JSONMap JSONMap) (bool,[]byte)
+	ValidateResponse    func(JSONMap JSONMap) (bool, []byte)
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
@@ -103,17 +103,14 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	return res, nil
 }
 
-func FixRequestURL(r *http.Request) error{
+func FixRequestURL(r *http.Request) error {
 
-	r.URL.Scheme="https"
+	r.URL.Scheme = "https"
 
 	val, err := url.Parse(r.URL.String())
 	r.URL = val
 
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, HeaderPrefixes map[string]string, timeout int32) ([]byte, error) {
@@ -125,7 +122,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 		return nil, err
 	}
 
-	if err := FixRequestURL(httpRequest); err !=nil{
+	if err := FixRequestURL(httpRequest); err != nil {
 		return nil, err
 	}
 
@@ -134,14 +131,14 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	if err != nil {
 		return nil, err
 	}
+	// closing the response body, not closing can cause a mem leak
+	defer func() {
+		if err = response.Body.Close(); err != nil {
+			log.Error(err)
+		}
+	}()
 
-	result, err := BuildResponse(response)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	return ioutil.ReadAll(response.Body)
 }
 
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
@@ -425,36 +422,4 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 	}
 
 	return paramDefault
-}
-
-func BuildResponse(response *http.Response) ([]byte, error) {
-	defer func() {
-		_ = response.Body.Close()
-	}()
-
-	var data JSONMap
-
-	result, err := ioutil.ReadAll(response.Body)
-
-	parsedOutput, err := CheckValid(result, data)
-	if err != nil {
-		return nil, err
-	}
-
-	return parsedOutput, nil
-}
-
-func CheckValid(result []byte,data JSONMap) ([]byte, error){
-
-	err := json.Unmarshal(result, &data)
-
-	if err != nil {
-		return nil, err
-	}
-	parsedOutput, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	return parsedOutput, nil
 }
