@@ -49,7 +49,8 @@ func parsePathParams(requestParameters map[string]string, operation *handlers.Op
 	for paramName, paramValue := range requestParameters {
 		for _, pathParam := range operation.PathParams {
 			if paramName == pathParam.ParamName {
-				requestPath = strings.ReplaceAll(path, consts.ParamPrefix+paramName+consts.ParamSuffix, paramValue)
+
+				requestPath = strings.ReplaceAll(requestPath, consts.ParamPrefix+paramName+consts.ParamSuffix, paramValue)
 			}
 		}
 	}

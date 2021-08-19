@@ -135,7 +135,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 		return nil, err
 	}
 
-	result, err := buildResponse(response)
+	result, err := BuildResponse(response)
 
 	if err != nil {
 		return nil, err
@@ -427,7 +427,7 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 	return paramDefault
 }
 
-func buildResponse(response *http.Response) ([]byte, error) {
+func BuildResponse(response *http.Response) ([]byte, error) {
 	defer func() {
 		_ = response.Body.Close()
 	}()
@@ -436,7 +436,7 @@ func buildResponse(response *http.Response) ([]byte, error) {
 
 	result, err := ioutil.ReadAll(response.Body)
 
-	parsedOutput, err := checkValid(result, data)
+	parsedOutput, err := CheckValid(result, data)
 	if err != nil {
 		return nil, err
 	}
@@ -444,7 +444,7 @@ func buildResponse(response *http.Response) ([]byte, error) {
 	return parsedOutput, nil
 }
 
-func checkValid(result []byte,data JSONMap) ([]byte, error){
+func CheckValid(result []byte,data JSONMap) ([]byte, error){
 
 	err := json.Unmarshal(result, &data)
 
