@@ -49,7 +49,8 @@ func parsePathParams(requestParameters map[string]string, operation *handlers.Op
 	for paramName, paramValue := range requestParameters {
 		for _, pathParam := range operation.PathParams {
 			if paramName == pathParam.ParamName {
-				requestPath = strings.ReplaceAll(path, consts.ParamPrefix+paramName+consts.ParamSuffix, paramValue)
+
+				requestPath = strings.ReplaceAll(requestPath, consts.ParamPrefix+paramName+consts.ParamSuffix, paramValue)
 			}
 		}
 	}
@@ -207,7 +208,7 @@ func GetRequestUrl(actionContext *plugin.ActionContext, provider string) string 
 	return requestUrl
 }
 
-func GetCredentials(actionContext *plugin.ActionContext, provider string) (jsonMap, error) {
+func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
 	connection, err := actionContext.GetCredentials(provider)
 
 	if err != nil {
