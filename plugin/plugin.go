@@ -44,7 +44,6 @@ type PluginMetadata struct {
 	Provider       string
 	MaskFile       string
 	OpenApiFile    string
-	tokenPrefix    string
 	Tags           []string
 	HeaderPrefixes HeaderPrefixes
 }
@@ -146,7 +145,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	}()
 
 	result.Body, err = ioutil.ReadAll(response.Body)
-	result.statusCode = response.StatusCode
+	result.StatusCode = response.StatusCode
 
 	return result, err
 }
