@@ -25,6 +25,11 @@ type HeaderPrefixes map[string]string
 
 type JSONMap interface{}
 
+type Result struct {
+	statusCode int
+	Body []byte
+}
+
 type openApiPlugin struct {
 	actions             []plugin.Action
 	description         plugin.Description
@@ -76,7 +81,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	result, err := ExecuteRequest(actionContext, openApiRequest, p.Describe().Provider, p.HeaderPrefixes, request.Timeout)
-	res.Result = result
+	res.Result = result.Body
 
 	if err != nil {
 		res.ErrorCode = consts.Error
@@ -88,7 +93,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	if p.ValidateResponse != nil {
 		var data JSONMap
 
-		if err = json.Unmarshal(result, &data); err != nil {
+		if err = json.Unmarshal(result.Body, &data); err != nil {
 			res.ErrorCode = consts.Error
 			res.Result = []byte(err.Error())
 			return res, nil
@@ -113,23 +118,25 @@ func FixRequestURL(r *http.Request) error {
 	return err
 }
 
-func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, HeaderPrefixes map[string]string, timeout int32) ([]byte, error) {
+func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, HeaderPrefixes map[string]string, timeout int32) (Result, error) {
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
+	result := Result{}
+
 	if err := SetAuthenticationHeaders(actionContext, httpRequest, providerName, HeaderPrefixes); err != nil {
-		return nil, err
+		return result, err
 	}
 
 	if err := FixRequestURL(httpRequest); err != nil {
-		return nil, err
+		return result, err
 	}
 
 	response, err := client.Do(httpRequest)
 
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	// closing the response body, not closing can cause a mem leak
 	defer func() {
@@ -138,7 +145,10 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 		}
 	}()
 
-	return ioutil.ReadAll(response.Body)
+	result.Body, err = ioutil.ReadAll(response.Body)
+	result.statusCode = response.StatusCode
+
+	return result, err
 }
 
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
