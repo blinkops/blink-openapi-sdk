@@ -92,16 +92,21 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	if p.ValidateResponse != nil {
 		var data JSONMap
 
-		if err = json.Unmarshal(result.Body, &data); err != nil {
-			res.ErrorCode = consts.Error
-			res.Result = []byte(err.Error())
-			return res, nil
+		//check if result.Body is empty
+		if len(result.Body) > 0 {
+			if err = json.Unmarshal(result.Body, &data); err != nil {
+				res.ErrorCode = consts.Error
+				res.Result = []byte(err.Error())
+				return res, nil
+			}
+
+			if valid, msg := p.ValidateResponse(data); !valid {
+				res.ErrorCode = consts.Error
+				res.Result = msg
+			}
 		}
 
-		if valid, msg := p.ValidateResponse(data); !valid {
-			res.ErrorCode = consts.Error
-			res.Result = msg
-		}
+
 	}
 
 	return res, nil
