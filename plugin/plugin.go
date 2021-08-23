@@ -26,7 +26,7 @@ type HeaderPrefixes map[string]string
 type JSONMap interface{}
 
 type Result struct {
-	statusCode int
+	StatusCode int
 	Body []byte
 }
 
