@@ -328,6 +328,20 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 }
 
 func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin.Action) {
+	if schema.AllOf != nil || schema.AnyOf != nil || schema.OneOf != nil {
+
+		var allSchemas []openapi3.SchemaRefs
+
+		allSchemas = append(allSchemas, schema.AllOf, schema.AnyOf, schema.OneOf)
+
+		// find properties nested in Allof, Anyof, Oneof
+		for _, schemaType := range allSchemas {
+			for _, schemaParams := range schemaType {
+				handleBodyParams(schemaParams.Value, "", action)
+			}
+		}
+	}
+
 	for propertyName, bodyProperty := range schema.Properties {
 		fullParamPath := propertyName
 
@@ -339,19 +353,6 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 		// Keep recursion until leaf node is found
 		if bodyProperty.Value.Properties != nil {
 			handleBodyParams(bodyProperty.Value, fullParamPath, action)
-		} else if bodyProperty.Value.AllOf != nil || bodyProperty.Value.AnyOf != nil || bodyProperty.Value.OneOf != nil {
-
-			var allSchemas []openapi3.SchemaRefs
-
-			allSchemas = append(allSchemas, bodyProperty.Value.AllOf, bodyProperty.Value.AnyOf, bodyProperty.Value.OneOf)
-
-			// find properties nested in Allof, Anyof, Oneof
-			for _, schemaType := range allSchemas {
-				for _, schemaParams := range schemaType {
-					handleBodyParams(schemaParams.Value, fullParamPath, action)
-				}
-			}
-
 		} else {
 			paramType := bodyProperty.Value.Type
 			paramOptions := getParamOptions(bodyProperty.Value.Enum, &paramType)
