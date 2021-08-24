@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"encoding/json"
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
@@ -35,7 +34,7 @@ type openApiPlugin struct {
 	description         plugin.Description
 	openApiFile         string
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
-	ValidateResponse    func(JSONMap) (bool, []byte)
+	ValidateResponse    func(Result) (bool, []byte)
 	HeaderPrefixes      HeaderPrefixes
 }
 
@@ -50,7 +49,7 @@ type PluginMetadata struct {
 
 type PluginChecks struct {
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
-	ValidateResponse    func(JSONMap JSONMap) (bool, []byte)
+	ValidateResponse    func(Result) (bool, []byte)
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
@@ -90,17 +89,10 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 
 	// if no validate response function was passed no response check will occur.
 	if p.ValidateResponse != nil {
-		var data JSONMap
 
 		//check if result.Body is empty
 		if len(result.Body) > 0 {
-			if err = json.Unmarshal(result.Body, &data); err != nil {
-				res.ErrorCode = consts.Error
-				res.Result = []byte(err.Error())
-				return res, nil
-			}
-
-			if valid, msg := p.ValidateResponse(data); !valid {
+			if valid, msg := p.ValidateResponse(result); !valid {
 				res.ErrorCode = consts.Error
 				res.Result = msg
 			}
