@@ -355,8 +355,8 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 
 			// find properties nested in Allof, Anyof, Oneof
 			for _, schemaType := range allSchemas {
-				for _, nestedBodyProperty := range schemaType {
-					handleBodyParams(nestedBodyProperty.Value, fullParamPath, action)
+				for _, schemaParams := range schemaType {
+					handleBodyParams(schemaParams.Value, fullParamPath, action)
 				}
 			}
 
