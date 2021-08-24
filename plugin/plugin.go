@@ -349,13 +349,14 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 			handleBodyParams(bodyProperty.Value, fullParamPath, action)
 		} else if bodyProperty.Value.AllOf != nil || bodyProperty.Value.AnyOf != nil || bodyProperty.Value.OneOf != nil {
 
-			var a []openapi3.SchemaRefs
+			var allSchemas []openapi3.SchemaRefs
 
-			a = append(a, bodyProperty.Value.AllOf, bodyProperty.Value.AnyOf, bodyProperty.Value.OneOf)
+			allSchemas = append(allSchemas, bodyProperty.Value.AllOf, bodyProperty.Value.AnyOf, bodyProperty.Value.OneOf)
 
-			for _, v := range a {
-				for _, v2  := range v {
-					handleBodyParams(v2.Value, fullParamPath, action)
+			// find properties nested in Allof, Anyof, Oneof
+			for _, schemaType := range allSchemas {
+				for _, nestedBodyProperty := range schemaType {
+					handleBodyParams(nestedBodyProperty.Value, fullParamPath, action)
 				}
 			}
 
