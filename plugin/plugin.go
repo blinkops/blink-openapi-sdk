@@ -328,19 +328,7 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 }
 
 func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin.Action) {
-	if schema.AllOf != nil || schema.AnyOf != nil || schema.OneOf != nil {
-
-		var allSchemas []openapi3.SchemaRefs
-
-		allSchemas = append(allSchemas, schema.AllOf, schema.AnyOf, schema.OneOf)
-
-		// find properties nested in Allof, Anyof, Oneof
-		for _, schemaType := range allSchemas {
-			for _, schemaParams := range schemaType {
-				handleBodyParams(schemaParams.Value, "", action)
-			}
-		}
-	}
+	handleBodyParamOfType(schema, action)
 
 	for propertyName, bodyProperty := range schema.Properties {
 		fullParamPath := propertyName
@@ -354,6 +342,7 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 		if bodyProperty.Value.Properties != nil {
 			handleBodyParams(bodyProperty.Value, fullParamPath, action)
 		} else {
+			handleBodyParamOfType(bodyProperty.Value, action)
 			paramType := bodyProperty.Value.Type
 			paramOptions := getParamOptions(bodyProperty.Value.Enum, &paramType)
 			paramPlaceholder := getParamPlaceholder(bodyProperty.Value.Example, paramType)
@@ -384,6 +373,22 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				Required:    isParamRequired,
 				Default:     paramDefault,
 				Options:     paramOptions,
+			}
+		}
+	}
+}
+
+func handleBodyParamOfType(schema *openapi3.Schema, action *plugin.Action) {
+	if schema.AllOf != nil || schema.AnyOf != nil || schema.OneOf != nil {
+
+		var allSchemas []openapi3.SchemaRefs
+
+		allSchemas = append(allSchemas, schema.AllOf, schema.AnyOf, schema.OneOf)
+
+		// find properties nested in Allof, Anyof, Oneof
+		for _, schemaType := range allSchemas {
+			for _, schemaParams := range schemaType {
+				handleBodyParams(schemaParams.Value, "", action)
 			}
 		}
 	}
