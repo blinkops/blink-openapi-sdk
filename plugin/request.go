@@ -165,7 +165,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // Credentials should be saved as headerName -> value according to the api definition
-func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string, HeaderPrefixes HeaderPrefixes) error {
+func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string, HeaderPrefixes HeaderPrefixes, HeaderAlias HeaderAlias) error {
 	securityHeaders, err := GetCredentials(actionContext, provider)
 
 	if err != nil {
@@ -175,6 +175,15 @@ func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
 			header = strings.ToUpper(header)
+			if val, ok := HeaderAlias[header]; ok {
+				// if the header is in our alias map we should replace it with the value in the map
+
+				// TOKEN -> AUTHORIZATION
+
+				header = val
+
+			}
+
 			if val, ok := HeaderPrefixes[header]; ok {
 
 				// we want to help the user by adding prefixes he might have missed
