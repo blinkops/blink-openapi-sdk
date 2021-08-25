@@ -21,7 +21,7 @@ var (
 	requestUrl string
 )
 
-type HeaderPrefixes map[string]string
+type HeaderValuePrefixes map[string]string
 type HeaderAlias map[string]string
 
 type JSONMap interface{}
@@ -37,7 +37,7 @@ type openApiPlugin struct {
 	openApiFile         string
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
 	ValidateResponse    func(JSONMap) (bool, []byte)
-	HeaderPrefixes      HeaderPrefixes
+	HeaderValuePrefixes      HeaderValuePrefixes
 	HeaderAlias         HeaderAlias
 }
 
@@ -47,7 +47,7 @@ type PluginMetadata struct {
 	MaskFile       string
 	OpenApiFile    string
 	Tags           []string
-	HeaderPrefixes HeaderPrefixes
+	HeaderValuePrefixes HeaderValuePrefixes
 	HeaderAlias    HeaderAlias
 }
 
@@ -82,7 +82,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	result, err := ExecuteRequest(actionContext, openApiRequest, p.Describe().Provider, p.HeaderPrefixes, p.HeaderAlias, request.Timeout)
+	result, err := ExecuteRequest(actionContext, openApiRequest, p.Describe().Provider, p.HeaderValuePrefixes, p.HeaderAlias, request.Timeout)
 	res.Result = result.Body
 
 	if err != nil {
@@ -124,14 +124,14 @@ func FixRequestURL(r *http.Request) error {
 	return err
 }
 
-func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, HeaderPrefixes HeaderPrefixes, HeaderAlias HeaderAlias, timeout int32) (Result, error) {
+func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32) (Result, error) {
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
 	result := Result{}
 
-	if err := SetAuthenticationHeaders(actionContext, httpRequest, providerName, HeaderPrefixes, HeaderAlias); err != nil {
+	if err := SetAuthenticationHeaders(actionContext, httpRequest, providerName, headerValuePrefixes, headerAlias); err != nil {
 		return result, err
 	}
 
@@ -313,7 +313,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		TestCredentialsFunc: checks.TestCredentialsFunc,
 		ValidateResponse:    checks.ValidateResponse,
 		actions:             actions,
-		HeaderPrefixes:      meta.HeaderPrefixes,
+		HeaderValuePrefixes:      meta.HeaderValuePrefixes,
 		HeaderAlias:         meta.HeaderAlias,
 		description: plugin.Description{
 			Name:        meta.Name,
