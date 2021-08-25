@@ -346,7 +346,7 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 		if bodyProperty.Value.Properties != nil {
 			handleBodyParams(bodyProperty.Value, fullParamPath, action)
 		} else {
-			handleBodyParamOfType(bodyProperty.Value, parentPath, action)
+			handleBodyParamOfType(bodyProperty.Value, fullParamPath, action)
 			paramType := bodyProperty.Value.Type
 			paramOptions := getParamOptions(bodyProperty.Value.Enum, &paramType)
 			paramPlaceholder := getParamPlaceholder(bodyProperty.Value.Example, paramType)
