@@ -37,18 +37,18 @@ type openApiPlugin struct {
 	openApiFile         string
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
 	ValidateResponse    func(JSONMap) (bool, []byte)
-	HeaderValuePrefixes      HeaderValuePrefixes
+	HeaderValuePrefixes HeaderValuePrefixes
 	HeaderAlias         HeaderAlias
 }
 
 type PluginMetadata struct {
-	Name           string
-	Provider       string
-	MaskFile       string
-	OpenApiFile    string
-	Tags           []string
+	Name                string
+	Provider            string
+	MaskFile            string
+	OpenApiFile         string
+	Tags                []string
 	HeaderValuePrefixes HeaderValuePrefixes
-	HeaderAlias    HeaderAlias
+	HeaderAlias         HeaderAlias
 }
 
 type PluginChecks struct {
@@ -313,7 +313,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		TestCredentialsFunc: checks.TestCredentialsFunc,
 		ValidateResponse:    checks.ValidateResponse,
 		actions:             actions,
-		HeaderValuePrefixes:      meta.HeaderValuePrefixes,
+		HeaderValuePrefixes: meta.HeaderValuePrefixes,
 		HeaderAlias:         meta.HeaderAlias,
 		description: plugin.Description{
 			Name:        meta.Name,
