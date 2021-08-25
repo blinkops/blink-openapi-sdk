@@ -180,8 +180,7 @@ func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http
 
 				// TOKEN -> AUTHORIZATION
 
-				header = val
-
+				header = strings.ToUpper(val)
 			}
 
 			if val, ok := HeaderPrefixes[header]; ok {
