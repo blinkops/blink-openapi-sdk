@@ -92,16 +92,12 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	// if no validate response function was passed no response check will occur.
-	if p.ValidateResponse != nil {
+	if p.ValidateResponse != nil && len(result.Body) > 0 {
 
-		//check if result.Body is empty
-		if len(result.Body) > 0 {
-			if valid, msg := p.ValidateResponse(result); !valid {
-				res.ErrorCode = consts.Error
-				res.Result = msg
-			}
+		if valid, msg := p.ValidateResponse(result); !valid {
+			res.ErrorCode = consts.Error
+			res.Result = msg
 		}
-
 	}
 
 	return res, nil
@@ -385,9 +381,7 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 func handleBodyParamOfType(schema *openapi3.Schema, parentPath string, action *plugin.Action) {
 	if schema.AllOf != nil || schema.AnyOf != nil || schema.OneOf != nil {
 
-		var allSchemas []openapi3.SchemaRefs
-
-		allSchemas = append(allSchemas, schema.AllOf, schema.AnyOf, schema.OneOf)
+		allSchemas := []openapi3.SchemaRefs{schema.AllOf, schema.AnyOf, schema.OneOf}
 
 		// find properties nested in Allof, Anyof, Oneof
 		for _, schemaType := range allSchemas {
