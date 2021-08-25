@@ -176,7 +176,7 @@ func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http
 		if headerValueString, ok := headerValue.(string); ok {
 			header = strings.ToUpper(header)
 			if val, ok := HeaderAlias[header]; ok {
-				// if the header is in our alias map we should replace it with the value in the map
+				// if the header is in our alias map replace it with the value in the map
 
 				// TOKEN -> AUTHORIZATION
 
