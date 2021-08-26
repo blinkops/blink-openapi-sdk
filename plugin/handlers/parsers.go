@@ -353,7 +353,23 @@ func generateParamsTypes(op OperationDefinition) []typeDefinition {
 
 func GetPropertyByName(name string, propertySchema *openapi3.Schema) *openapi3.Schema {
 	var subPropertySchema *openapi3.Schema
+	allSchemas := []openapi3.SchemaRefs{propertySchema.AllOf, propertySchema.OneOf, propertySchema.AnyOf}
 
+	if propertySchema.Properties == nil {
+		for _, schemaType := range allSchemas {
+			for _, schemaParams := range schemaType {
+				subPropertySchema = GetPropertyByName(name, schemaParams.Value)
+				if subPropertySchema != nil {
+					break
+				}
+			}
+			if subPropertySchema != nil {
+				break
+			}
+		}
+
+		return subPropertySchema
+	}
 	for propertyName, bodyProperty := range propertySchema.Properties {
 		if propertyName == name {
 			subPropertySchema = bodyProperty.Value

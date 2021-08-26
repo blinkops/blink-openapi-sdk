@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"encoding/json"
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
@@ -36,7 +35,8 @@ type openApiPlugin struct {
 	description         plugin.Description
 	openApiFile         string
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
-	ValidateResponse    func(JSONMap) (bool, []byte)
+
+	ValidateResponse    func(Result) (bool, []byte)
 	HeaderValuePrefixes HeaderValuePrefixes
 	HeaderAlias         HeaderAlias
 }
@@ -53,7 +53,7 @@ type PluginMetadata struct {
 
 type PluginChecks struct {
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
-	ValidateResponse    func(JSONMap JSONMap) (bool, []byte)
+	ValidateResponse    func(Result) (bool, []byte)
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
@@ -92,23 +92,12 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	// if no validate response function was passed no response check will occur.
-	if p.ValidateResponse != nil {
-		var data JSONMap
+	if p.ValidateResponse != nil && len(result.Body) > 0 {
 
-		//check if result.Body is empty
-		if len(result.Body) > 0 {
-			if err = json.Unmarshal(result.Body, &data); err != nil {
-				res.ErrorCode = consts.Error
-				res.Result = []byte(err.Error())
-				return res, nil
-			}
-
-			if valid, msg := p.ValidateResponse(data); !valid {
-				res.ErrorCode = consts.Error
-				res.Result = msg
-			}
+		if valid, msg := p.ValidateResponse(result); !valid {
+			res.ErrorCode = consts.Error
+			res.Result = msg
 		}
-
 	}
 
 	return res, nil
@@ -339,6 +328,8 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 }
 
 func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin.Action) {
+	handleBodyParamOfType(schema, parentPath, action)
+
 	for propertyName, bodyProperty := range schema.Properties {
 		fullParamPath := propertyName
 
@@ -350,20 +341,8 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 		// Keep recursion until leaf node is found
 		if bodyProperty.Value.Properties != nil {
 			handleBodyParams(bodyProperty.Value, fullParamPath, action)
-		} else if bodyProperty.Value.AllOf != nil || bodyProperty.Value.AnyOf != nil || bodyProperty.Value.OneOf != nil {
-
-			var allSchemas []openapi3.SchemaRefs
-
-			allSchemas = append(allSchemas, bodyProperty.Value.AllOf, bodyProperty.Value.AnyOf, bodyProperty.Value.OneOf)
-
-			// find properties nested in Allof, Anyof, Oneof
-			for _, schemaType := range allSchemas {
-				for _, schemaParams := range schemaType {
-					handleBodyParams(schemaParams.Value, fullParamPath, action)
-				}
-			}
-
 		} else {
+			handleBodyParamOfType(bodyProperty.Value, fullParamPath, action)
 			paramType := bodyProperty.Value.Type
 			paramOptions := getParamOptions(bodyProperty.Value.Enum, &paramType)
 			paramPlaceholder := getParamPlaceholder(bodyProperty.Value.Example, paramType)
@@ -394,6 +373,20 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				Required:    isParamRequired,
 				Default:     paramDefault,
 				Options:     paramOptions,
+			}
+		}
+	}
+}
+
+func handleBodyParamOfType(schema *openapi3.Schema, parentPath string, action *plugin.Action) {
+	if schema.AllOf != nil || schema.AnyOf != nil || schema.OneOf != nil {
+
+		allSchemas := []openapi3.SchemaRefs{schema.AllOf, schema.AnyOf, schema.OneOf}
+
+		// find properties nested in Allof, Anyof, Oneof
+		for _, schemaType := range allSchemas {
+			for _, schemaParams := range schemaType {
+				handleBodyParams(schemaParams.Value, parentPath, action)
 			}
 		}
 	}
