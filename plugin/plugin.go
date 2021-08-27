@@ -76,7 +76,7 @@ func (p *openApiPlugin) MakeMarkdown() error {
 	}
 	defer f.Close()
 
-	tmpl, err := template.ParseFiles("templates/readme.md.tmpl")
+	tmpl, err := template.ParseFiles("github.com/blinkops/blink-openapi-sdk/templates/readme.md.tmpl")
 	if err != nil {
 		return err
 	}
