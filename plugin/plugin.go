@@ -70,13 +70,13 @@ func (p *openApiPlugin) GetActions() []plugin.Action {
 }
 
 func (p *openApiPlugin) MakeMarkdown() error {
-	f, err := os.Create("README.md")
+	f, err := os.Create(consts.README)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	tmpl, err := template.ParseFiles("github.com/blinkops/blink-openapi-sdk/templates/readme.md.tmpl")
+	tmpl, err := template.ParseFiles(consts.TemplatePath)
 	if err != nil {
 		return err
 	}

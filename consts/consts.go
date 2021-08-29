@@ -18,6 +18,9 @@ const (
 
 	ParamPlaceholderPrefix = "Example: "
 
+	TemplatePath = "templates/readme.md.tmpl"
+	README       = "README.md"
+
 	Error = 1
 	OK    = 0
 )
