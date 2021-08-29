@@ -76,13 +76,12 @@ func (p *openApiPlugin) MakeMarkdown() error {
 	}
 	defer f.Close()
 
-	tmpl, err := template.ParseFiles(consts.TemplatePath)
+	tmpl, err := template.New("").Parse(consts.READMETemplate)
 	if err != nil {
 		return err
 	}
 
-	err = tmpl.Execute(f, p)
-	if err != nil {
+	if err := tmpl.Execute(f, p); err != nil {
 		return err
 	}
 
