@@ -264,7 +264,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		actionName := operation.OperationId
 
 		// Skip masked actions
-		if mask.MaskData != nil {
+		if mask.MaskData.Actions != nil {
 			if maskedAction := mask.MaskData.GetAction(actionName); maskedAction == nil {
 				continue
 			} else {
