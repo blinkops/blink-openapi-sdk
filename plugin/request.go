@@ -50,7 +50,7 @@ func parsePathParams(requestParameters map[string]string, operation *handlers.Op
 		for _, pathParam := range operation.PathParams {
 			if paramName == pathParam.ParamName {
 
-				requestPath = strings.ReplaceAll(requestPath, consts.ParamPrefix+paramName+consts.ParamSuffix, paramValue)
+				requestPath = strings.ReplaceAll(requestPath, consts.ParamPrefix+paramName+consts.ParamSuffix, url.QueryEscape(paramValue))
 			}
 		}
 	}
