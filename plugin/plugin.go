@@ -9,9 +9,12 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"html/template"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -64,6 +67,25 @@ func (p *openApiPlugin) Describe() plugin.Description {
 func (p *openApiPlugin) GetActions() []plugin.Action {
 	log.Debug("Handling GetActions request!")
 	return p.actions
+}
+
+func (p *openApiPlugin) MakeMarkdown() error {
+	f, err := os.Create(consts.README)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	tmpl, err := template.New("").Parse(consts.READMETemplate)
+	if err != nil {
+		return err
+	}
+
+	if err := tmpl.Execute(f, p); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
@@ -297,6 +319,12 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 
 		actions = append(actions, action)
 	}
+
+	// sort the actions
+	// each time we parse the openapi the actions are added to the map in different order.
+	sort.Slice(actions, func(i, j int) bool {
+		return actions[i].Name < actions[j].Name
+	})
 
 	return &openApiPlugin{
 		TestCredentialsFunc: checks.TestCredentialsFunc,
