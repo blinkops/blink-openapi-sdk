@@ -290,7 +290,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 			paramOptions := getParamOptions(pathParam.Spec.Schema.Value.Enum, &paramType)
 			isParamRequired := pathParam.Required
 
-			if mask.MaskData != nil {
+			if mask.MaskData.Actions != nil {
 				if maskedParam := mask.MaskData.GetParameter(actionName, paramName); maskedParam == nil {
 					continue
 				} else {
@@ -384,7 +384,7 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				}
 			}
 
-			if mask.MaskData != nil {
+			if mask.MaskData.Actions != nil {
 				if maskedParam := mask.MaskData.GetParameter(action.Name, fullParamPath); maskedParam == nil {
 					continue
 				} else {
