@@ -3,6 +3,7 @@ package mask
 import (
 	"gopkg.in/yaml.v3"
 	"io/ioutil"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -73,6 +74,12 @@ func ParseMask(maskFile string) error {
 func buildActionAliasMap() {
 	for originalName, actionData := range MaskData.Actions {
 		if actionData.Alias != "" {
+
+			if _, ok := reverseActionAliasMap[actionData.Alias]; ok{
+				// error
+				log.Fatalln("Alias "+ actionData.Alias+ " exist multiple times.")
+			}
+
 			reverseActionAliasMap[actionData.Alias] = originalName
 		}
 	}

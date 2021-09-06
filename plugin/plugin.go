@@ -94,6 +94,17 @@ func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionIn
 
 }
 
+func (p *openApiPlugin) ActionExist(actionName string) bool{
+	log.Info(actionName)
+	for _, val := range p.actions {
+		log.Info(val.Name)
+		if val.Name == actionName{
+			return true
+		}
+	}
+	return false
+}
+
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
 	res := &plugin.ExecuteActionResponse{ErrorCode: consts.OK}
 	openApiRequest, err := p.parseActionRequest(actionContext, request)
@@ -141,18 +152,21 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	}
 
 	result := Result{}
-
+	log.Info(httpRequest.URL)
 	if err := SetAuthenticationHeaders(actionContext, httpRequest, providerName, headerValuePrefixes, headerAlias); err != nil {
+		log.Error(err)
 		return result, err
 	}
 
 	if err := FixRequestURL(httpRequest); err != nil {
+		log.Error(err)
 		return result, err
 	}
 
 	response, err := client.Do(httpRequest)
 
 	if err != nil {
+		log.Error(err)
 		return result, err
 	}
 	// closing the response body, not closing can cause a mem leak
@@ -165,11 +179,21 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	result.Body, err = ioutil.ReadAll(response.Body)
 	result.StatusCode = response.StatusCode
 
+	log.Debug(result.Body)
+	log.Info(result.StatusCode)
+
 	return result, err
 }
 
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
+
+	if p.ActionExist(actionName) == false{
+		err := errors.New("No such method")
+		log.Error(err)
+		return nil, err
+	}
+
 	actionName = mask.ReplaceActionAlias(actionName)
 
 	operation := handlers.OperationDefinitions[actionName]
@@ -225,7 +249,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*openApiPlugin, error) {
 
 	if checks.TestCredentialsFunc == nil {
-		panic("TestCredentials function is missing")
+		log.Fatal("TestCredentials function is missing")
 	}
 
 	var actions []plugin.Action
