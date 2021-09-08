@@ -94,11 +94,9 @@ func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionIn
 
 }
 
-func (p *openApiPlugin) ActionExist(actionName string) bool{
-	log.Info(actionName)
+func (p *openApiPlugin) ActionExist(actionName string) bool {
 	for _, val := range p.actions {
-		log.Info(val.Name)
-		if val.Name == actionName{
+		if val.Name == actionName {
 			return true
 		}
 	}
@@ -152,7 +150,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	}
 
 	result := Result{}
-	log.Info(httpRequest.URL)
+
 	if err := SetAuthenticationHeaders(actionContext, httpRequest, providerName, headerValuePrefixes, headerAlias); err != nil {
 		log.Error(err)
 		return result, err
@@ -162,6 +160,8 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 		log.Error(err)
 		return result, err
 	}
+
+	log.Debug(httpRequest)
 
 	response, err := client.Do(httpRequest)
 
@@ -179,8 +179,10 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	result.Body, err = ioutil.ReadAll(response.Body)
 	result.StatusCode = response.StatusCode
 
-	log.Debug(result.Body)
-	log.Info(result.StatusCode)
+	log.WithFields(log.Fields{
+		"body":        result.Body,
+		"status code": result.StatusCode,
+	}).Debug()
 
 	return result, err
 }
@@ -188,7 +190,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
 
-	if p.ActionExist(actionName) == false{
+	if p.ActionExist(actionName) == false {
 		err := errors.New("No such method")
 		log.Error(err)
 		return nil, err
