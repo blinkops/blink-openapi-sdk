@@ -137,12 +137,11 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 }
 
 func FixRequestURL(r *http.Request) error {
-
-	r.URL.Scheme = "https"
-
+	if r.URL.Scheme == "" {
+		r.URL.Scheme = "https"
+	}
 	val, err := url.Parse(r.URL.String())
 	r.URL = val
-
 	return err
 }
 
@@ -188,7 +187,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
 
-	if p.ActionExist(actionName) == false{
+	if !p.ActionExist(actionName) {
 		err := errors.New("No such method")
 		log.Error(err)
 		return nil, err
