@@ -469,7 +469,7 @@ func parseActionParam(actionName string, paramName string, paramSchema *openapi3
 	paramOptions := getParamOptions(paramSchema.Value.Enum, &paramType)
 	paramPlaceholder := getParamPlaceholder(paramSchema.Value.Example, paramType)
 	paramDefault := getParamDefault(paramSchema.Value.Default, paramType)
-	paramIndex := 999 // parameters will be ordered from lowes to highest in UI. This is the default meaning - the end of the list.
+	paramIndex := 999 // parameters will be ordered from lowest to highest in UI. This is the default, meaning - the end of the list.
 
 	if mask.MaskData.Actions != nil {
 		if maskedParam := mask.MaskData.GetParameter(actionName, paramName); maskedParam != nil {
