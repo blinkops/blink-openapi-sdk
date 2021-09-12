@@ -188,7 +188,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
 
-	if p.ActionExist(actionName) == false {
+	if !p.ActionExist(actionName) {
 		err := errors.New("No such method")
 		log.Error(err)
 		return nil, err
@@ -477,12 +477,12 @@ func parseActionParam(actionName string, paramName string, paramSchema *openapi3
 				paramName = maskedParam.Alias
 			}
 
-			// Overwrite Required property only if not explicitly defined by OpenAPI definition
+			// Override Required property only if not explicitly defined by OpenAPI definition
 			if !isParamRequired {
 				isParamRequired = maskedParam.Required
 			}
 
-			// Overwrite the Type property
+			// Override the Type property
 			if maskedParam.Type != "" {
 				paramType = maskedParam.Type
 			}
