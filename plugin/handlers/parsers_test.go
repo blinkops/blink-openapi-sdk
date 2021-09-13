@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"net/url"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -71,10 +72,14 @@ var testData = `[{
 }]
 `
 
+type ParsersTestSuite struct {
+	suite.Suite
+}
+
 // Since the data is complex and hard to generate (tried a few generators but
 // they won't generate data for interface{} types which we have)
 // so I created a test event data and we'll be using it for our tests
-func TestMain(t *testing.T) {
+func (suite *ParsersTestSuite) SetupSuite() {
 	rawIn := json.RawMessage(testData)
 	bytes, err := rawIn.MarshalJSON()
 	if err != nil {
@@ -87,7 +92,7 @@ func TestMain(t *testing.T) {
 	}
 }
 
-func TestSortedPathKeys(t *testing.T) {
+func (suite *ParsersTestSuite) TestSortedPathKeys() {
 	type args struct {
 		pathKeys openapi3.Paths
 	}
@@ -121,7 +126,7 @@ func TestSortedPathKeys(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run("test sortedPathKeys(): "+tt.name, func(t *testing.T) {
+		suite.T().Run("test sortedPathKeys(): "+tt.name, func(t *testing.T) {
 			mySlice := sortedPathsKeys(tt.args.pathKeys)
 			for i := range mySlice {
 				if mySlice[i] != tt.output[i] {
@@ -132,7 +137,7 @@ func TestSortedPathKeys(t *testing.T) {
 	}
 }
 
-func TestDescribeParameters(t *testing.T) {
+func (suite *ParsersTestSuite) TestDescribeParameters() {
 	type args struct {
 		params openapi3.Parameters
 	}
@@ -166,7 +171,7 @@ func TestDescribeParameters(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("test describeParameters(): "+tt.name, func(t *testing.T) {
+		suite.T().Run("test describeParameters(): "+tt.name, func(t *testing.T) {
 			result := describeParameters(tt.args.params)
 			assert.Equal(t, len(result), 1)
 			assert.Equal(t, result[0].ParamName, tt.args.params[0].Value.Name)
@@ -176,7 +181,7 @@ func TestDescribeParameters(t *testing.T) {
 	}
 }
 
-func TestSortParamsByPath(t *testing.T) {
+func (suite *ParsersTestSuite) TestSortParamsByPath() {
 	type args struct {
 		path string
 		in   []parameterDefinition
@@ -210,7 +215,7 @@ func TestSortParamsByPath(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run("test sortParamsByPath(): "+tt.name, func(t *testing.T) {
+		suite.T().Run("test sortParamsByPath(): "+tt.name, func(t *testing.T) {
 			_, err := sortParamsByPath(tt.args.path, tt.args.in)
 
 			if (err != nil) != tt.wantErr {
@@ -220,7 +225,7 @@ func TestSortParamsByPath(t *testing.T) {
 	}
 }
 
-func TestDefineOperations(t *testing.T) {
+func (suite *ParsersTestSuite) TestDefineOperations() {
 	type args struct {
 		templateURI string
 	}
@@ -242,7 +247,7 @@ func TestDefineOperations(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run("test DefineOperations(): "+tt.name, func(t *testing.T) {
+		suite.T().Run("test DefineOperations(): "+tt.name, func(t *testing.T) {
 			// first we reset the map.
 			OperationDefinitions = map[string]*OperationDefinition{}
 
@@ -282,7 +287,7 @@ func TestDefineOperations(t *testing.T) {
 	}
 }
 
-func TestGetPropertyByName(t *testing.T) {
+func (suite *ParsersTestSuite) TestGetPropertyByName() {
 	schemaByte := []byte(`{
  "description": "Folder details",
  "properties": {
@@ -393,9 +398,15 @@ func TestGetPropertyByName(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run("test GetPropertyByName(): "+tt.name, func(t *testing.T) {
+		suite.T().Run("test GetPropertyByName(): "+tt.name, func(t *testing.T) {
 			subPropertySchema := GetPropertyByName(tt.args.propertyName, schema)
 			assert.Equal(t, (subPropertySchema == nil), tt.nilOutput)
 		})
 	}
+}
+
+// In order for 'go test' to run this suite, we need to create
+// a normal test function and pass our suite to suite.Run
+func TestParsersSuite(t *testing.T) {
+	suite.Run(t, new(ParsersTestSuite))
 }

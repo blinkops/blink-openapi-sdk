@@ -194,7 +194,6 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	}
 
 	actionName = mask.ReplaceActionAlias(actionName)
-
 	operation := handlers.OperationDefinitions[actionName]
 
 	// get the parameters from the request.
@@ -206,11 +205,8 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 
 	// replace the raw parameters with their alias.
 	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters)
-
 	requestUrl = GetRequestUrl(actionContext, p.Describe().Provider)
-
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
-
 	operationUrl, err := url.Parse(requestUrl + requestPath)
 
 	if err != nil {

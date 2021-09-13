@@ -2,6 +2,7 @@ package mask
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
 	"testing"
 )
@@ -60,49 +61,50 @@ var (
         alias: "Commit Message"`
 )
 
+type MaskTestSuite struct {
+	suite.Suite
+}
+
 // Need to populate the global variables.
-func TestMain(t *testing.T) {
+func (suite *MaskTestSuite) SetupSuite() {
 	if err := yaml.Unmarshal([]byte(testData), MaskData); err != nil {
 		panic("unable to unmarshal test data")
 	}
-
 }
 
-
-func TestBuildActionAliasMap(t *testing.T) {
+func (suite *MaskTestSuite) TestBuildActionAliasMap() {
 	buildActionAliasMap()
-	assert.Equal(t, len(reverseActionAliasMap), 0)
+	assert.Equal(suite.T(), len(reverseActionAliasMap), 0)
 }
 
-func TestBuildParamAliasMap(t *testing.T) {
+func (suite *MaskTestSuite) TestBuildParamAliasMap() {
 	buildParamAliasMap()
-	assert.Equal(t, len(reverseParameterAliasMap), 5)
-	assert.Contains(t, reverseParameterAliasMap, "AddTeamMember")
-	assert.Contains(t, reverseParameterAliasMap["AddTeamMember"], "Team ID")
-	assert.Contains(t, reverseParameterAliasMap["AddTeamMember"], "User ID")
+	assert.Equal(suite.T(), len(reverseParameterAliasMap), 5)
+	assert.Contains(suite.T(), reverseParameterAliasMap, "AddTeamMember")
+	assert.Contains(suite.T(), reverseParameterAliasMap["AddTeamMember"], "Team ID")
+	assert.Contains(suite.T(), reverseParameterAliasMap["AddTeamMember"], "User ID")
 }
 
-func TestReplaceActionAlias(t *testing.T) {
+func (suite *MaskTestSuite) TestReplaceActionAlias() {
 	input := "InviteOrgMember"
 	result := ReplaceActionAlias(input)
-	assert.Equal(t, result, input)
+	assert.Equal(suite.T(), result, input)
 }
 
-func TestGetAction(t *testing.T) {
+func (suite *MaskTestSuite) TestGetAction() {
 	action := MaskData.GetAction("CreateFolder")
-	assert.Equal(t, action.Alias, "")
-	assert.Equal(t, len(action.Parameters), 2)
-	assert.Equal(t, action.Parameters["uid"].Alias, "Folder ID (optional)")
+	assert.Equal(suite.T(), action.Alias, "")
+	assert.Equal(suite.T(), len(action.Parameters), 2)
+	assert.Equal(suite.T(), action.Parameters["uid"].Alias, "Folder ID (optional)")
 }
 
-func TestGetParameter(t *testing.T) {
+func (suite *MaskTestSuite) TestGetParameter() {
 	actionParameter := MaskData.GetParameter("CreateFolder", "title")
-	assert.Equal(t, actionParameter.Alias, "Folder Name")
+	assert.Equal(suite.T(), actionParameter.Alias, "Folder Name")
 }
 
-
-/*
-func TestReplaceActionParametersAliases(t *testing.T) {
-	result := ReplaceActionParametersAliases("InviteOrgMember", )
+// In order for 'go test' to run this suite, we need to create
+// a normal test function and pass our suite to suite.Run
+func TestMaskSuite(t *testing.T) {
+	suite.Run(t, new(MaskTestSuite))
 }
-*/
