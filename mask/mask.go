@@ -1,9 +1,9 @@
 package mask
 
 import (
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	"io/ioutil"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -12,9 +12,21 @@ var (
 	MaskData                 = &Mask{}
 )
 
-type Mask struct {
-	Actions map[string]*MaskedAction `yaml:"actions,omitempty"`
-}
+type (
+	Mask      struct {
+		Actions map[string]*MaskedAction `yaml:"actions,omitempty"`
+	}
+	MaskedAction struct {
+		Alias      string                            `yaml:"alias,omitempty"`
+		Parameters map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
+	}
+	MaskedActionParameter struct {
+		Alias    string `yaml:"alias,omitempty"`
+		Required bool   `yaml:"required,omitempty"`
+		Type     string `yaml:"type,omitempty"` // password/date - 2017-07-21/date-time - 2017-07-21T17:32:28Z/date-epoch - 1631399887
+		Index    int    `yaml:"index,omitempty"`
+	}
+)
 
 func (m *Mask) GetAction(actionName string) *MaskedAction {
 	originalActionName := ReplaceActionAlias(actionName)
@@ -39,15 +51,6 @@ func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionPa
 	}
 
 	return nil
-}
-
-type MaskedAction struct {
-	Alias      string                            `yaml:"alias,omitempty"`
-	Parameters map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
-}
-
-type MaskedActionParameter struct {
-	Alias    string `yaml:"alias,omitempty"`
 }
 
 func ParseMask(maskFile string) error {
@@ -75,9 +78,9 @@ func buildActionAliasMap() {
 	for originalName, actionData := range MaskData.Actions {
 		if actionData.Alias != "" {
 
-			if _, ok := reverseActionAliasMap[actionData.Alias]; ok{
+			if _, ok := reverseActionAliasMap[actionData.Alias]; ok {
 				// error
-				log.Fatalln("Alias "+ actionData.Alias+ " exist multiple times.")
+				log.Fatalln("Alias " + actionData.Alias + " exist multiple times.")
 			}
 
 			reverseActionAliasMap[actionData.Alias] = originalName
