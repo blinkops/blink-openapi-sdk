@@ -94,11 +94,11 @@ func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionIn
 
 }
 
-func (p *openApiPlugin) ActionExist(actionName string) bool{
+func (p *openApiPlugin) ActionExist(actionName string) bool {
 	log.Info(actionName)
 	for _, val := range p.actions {
 		log.Info(val.Name)
-		if val.Name == actionName{
+		if val.Name == actionName {
 			return true
 		}
 	}
@@ -188,7 +188,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
 
-	if p.ActionExist(actionName) == false{
+	if !p.ActionExist(actionName) {
 		err := errors.New("No such method")
 		log.Error(err)
 		return nil, err
@@ -308,30 +308,8 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 
 		for _, pathParam := range operation.AllParams() {
 			paramName := pathParam.ParamName
-			paramType := pathParam.Spec.Schema.Value.Type
-			paramDefault := getParamDefault(pathParam.Spec.Schema.Value.Default, paramType)
-			paramPlaceholder := getParamPlaceholder(pathParam.Spec.Example, paramType)
-			paramOptions := getParamOptions(pathParam.Spec.Schema.Value.Enum, &paramType)
-			isParamRequired := pathParam.Required
-
-			if mask.MaskData.Actions != nil {
-				if maskedParam := mask.MaskData.GetParameter(actionName, paramName); maskedParam == nil {
-					continue
-				} else {
-					if maskedParam.Alias != "" {
-						paramName = maskedParam.Alias
-					}
-				}
-			}
-
-			action.Parameters[paramName] = plugin.ActionParameter{
-				Type:        paramType,
-				Description: pathParam.Spec.Description,
-				Placeholder: paramPlaceholder,
-				Required:    isParamRequired,
-				Default:     paramDefault,
-				Options:     paramOptions,
-			}
+			actionParam := parseActionParam(actionName, paramName, pathParam.Spec.Schema, pathParam.Required)
+			action.Parameters[paramName] = actionParam
 		}
 
 		for _, paramBody := range operation.Bodies {
@@ -395,10 +373,6 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 			handleBodyParams(bodyProperty.Value, fullParamPath, action)
 		} else {
 			handleBodyParamOfType(bodyProperty.Value, fullParamPath, action)
-			paramType := bodyProperty.Value.Type
-			paramOptions := getParamOptions(bodyProperty.Value.Enum, &paramType)
-			paramPlaceholder := getParamPlaceholder(bodyProperty.Value.Example, paramType)
-			paramDefault := getParamDefault(bodyProperty.Value.Default, paramType)
 			isParamRequired := false
 
 			for _, requiredParam := range schema.Required {
@@ -408,24 +382,8 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				}
 			}
 
-			if mask.MaskData.Actions != nil {
-				if maskedParam := mask.MaskData.GetParameter(action.Name, fullParamPath); maskedParam == nil {
-					continue
-				} else {
-					if maskedParam.Alias != "" {
-						fullParamPath = maskedParam.Alias
-					}
-				}
-			}
-
-			action.Parameters[fullParamPath] = plugin.ActionParameter{
-				Type:        paramType,
-				Description: bodyProperty.Value.Description,
-				Placeholder: paramPlaceholder,
-				Required:    isParamRequired,
-				Default:     paramDefault,
-				Options:     paramOptions,
-			}
+			actionParam := parseActionParam(action.Name, fullParamPath, bodyProperty, isParamRequired)
+			action.Parameters[fullParamPath] = actionParam
 		}
 	}
 }
@@ -497,4 +455,51 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 	}
 
 	return paramDefault
+}
+
+func parseActionParam(actionName string, paramName string, paramSchema *openapi3.SchemaRef, isParamRequired bool) plugin.ActionParameter {
+	paramType := paramSchema.Value.Type
+	paramFormat := paramSchema.Value.Format
+
+	// Pass the specific format if specified
+	if paramFormat != "" {
+		paramType = paramFormat
+	}
+
+	paramOptions := getParamOptions(paramSchema.Value.Enum, &paramType)
+	paramPlaceholder := getParamPlaceholder(paramSchema.Value.Example, paramType)
+	paramDefault := getParamDefault(paramSchema.Value.Default, paramType)
+	paramIndex := 999 // parameters will be ordered from lowest to highest in UI. This is the default, meaning - the end of the list.
+
+	if mask.MaskData.Actions != nil {
+		if maskedParam := mask.MaskData.GetParameter(actionName, paramName); maskedParam != nil {
+			if maskedParam.Alias != "" {
+				paramName = maskedParam.Alias
+			}
+
+			// Override Required property only if not explicitly defined by OpenAPI definition
+			if !isParamRequired {
+				isParamRequired = maskedParam.Required
+			}
+
+			// Override the Type property
+			if maskedParam.Type != "" {
+				paramType = maskedParam.Type
+			}
+
+			if maskedParam.Index != 0 {
+				paramIndex = maskedParam.Index
+			}
+		}
+	}
+
+	return plugin.ActionParameter{
+		Type:        paramType,
+		Description: paramSchema.Value.Description,
+		Placeholder: paramPlaceholder,
+		Required:    isParamRequired,
+		Default:     paramDefault,
+		Options:     paramOptions,
+		Index:       paramIndex,
+	}
 }
