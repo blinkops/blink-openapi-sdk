@@ -16,6 +16,12 @@ const (
 	ArrayDelimiter     = ","
 	ContentTypeHeader  = "Content-Type"
 
+	BearerAuth = "Bearer "
+	BasicAuth = "Basic "
+	BasicAuthUsername = "USERNAME"
+	BasicAuthPassword = "PASSWORD"
+
+
 	ParamPlaceholderPrefix = "Example: "
 
 	READMETemplate = `
