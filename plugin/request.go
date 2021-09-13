@@ -209,10 +209,10 @@ func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http
 	return nil
 }
 
-func constructBasicAuthHeader(username, password string,) string {
+func constructBasicAuthHeader(username, password string) string {
 	data := []byte(fmt.Sprintf("%s:%s", username, password))
 	hashed := base64.StdEncoding.EncodeToString(data)
-	return fmt.Sprintf("%s %s", consts.BasicAuth, hashed)
+	return fmt.Sprintf("%s%s", consts.BasicAuth, hashed)
 }
 
 func cleanRedundantHeaders(requestHeaders *http.Header) {
