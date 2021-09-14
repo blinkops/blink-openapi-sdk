@@ -1,7 +1,9 @@
 package plugin
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
 	"github.com/blinkops/blink-sdk/plugin"
@@ -172,32 +174,50 @@ func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http
 		return err
 	}
 
+	headers := make(map[string]string)
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
 			header = strings.ToUpper(header)
+			// if the header is in our alias map replace it with the value in the map
+			// TOKEN -> AUTHORIZATION
 			if val, ok := headerAlias[header]; ok {
-				// if the header is in our alias map replace it with the value in the map
-				// TOKEN -> AUTHORIZATION
 				header = strings.ToUpper(val)
 			}
 
+			// we want to help the user by adding prefixes he might have missed
+			// for example:   Bearer <TOKEN>
 			if val, ok := headerValuePrefixes[header]; ok {
-
-				// we want to help the user by adding prefixes he might have missed
-				// for example
-				// Bearer <TOKEN>
 				if !strings.HasPrefix(headerValueString, val) { // check what prefix the user doesn't have
 					// add the prefix
 					headerValueString = val + headerValueString
 				}
-
 			}
 
+			// If the user supplied BOTH username and password
+			// Username:Password pair should be base64 encoded
+			// and sent as "Authorization: base64(user:pass)"
+			headers[header] = headerValueString
+			if username, ok := headers[consts.BasicAuthUsername]; ok {
+				if password, ok := headers[consts.BasicAuthPassword]; ok {
+					header, headerValueString = "Authorization", constructBasicAuthHeader(username, password)
+					cleanRedundantHeaders(&request.Header)
+				}
+			}
 			request.Header.Set(header, headerValueString)
 		}
 	}
-
 	return nil
+}
+
+func constructBasicAuthHeader(username, password string) string {
+	data := []byte(fmt.Sprintf("%s:%s", username, password))
+	hashed := base64.StdEncoding.EncodeToString(data)
+	return fmt.Sprintf("%s%s", consts.BasicAuth, hashed)
+}
+
+func cleanRedundantHeaders(requestHeaders *http.Header) {
+	requestHeaders.Del(consts.BasicAuthUsername)
+	requestHeaders.Del(consts.BasicAuthPassword)
 }
 
 func GetRequestUrl(actionContext *plugin.ActionContext, provider string) string {
