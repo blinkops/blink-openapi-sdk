@@ -365,7 +365,9 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 		if parentPath != "" {
 			fullParamPath = parentPath + consts.BodyParamDelimiter + fullParamPath
 		}
-
+		if hasDuplicates(fullParamPath) {
+			 continue
+		}
 		// Keep recursion until leaf node is found
 		if bodyProperty.Value.Properties != nil {
 			handleBodyParams(bodyProperty.Value, fullParamPath, action)
@@ -473,4 +475,17 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 	}
 
 	return paramDefault
+}
+
+func hasDuplicates(path string) bool {
+	paramsArray := strings.Split(path,".")
+	exists := make(map[string]bool)
+	for _, param := range paramsArray {
+		if exists[param] == true {
+			return true
+		} else {
+			exists[param] = true
+		}
+	}
+	return false
 }
