@@ -38,7 +38,7 @@ func DefineOperations(openApi *openapi3.T) error {
 			allParams := append(localParams, globalParams...)
 
 			// Remove any duplicate names in the params array. The last occurrence will be removed
-			// because we want to prioritize the op param and not the global param (which comes first)
+			// because we want to prioritize the op param and not the global param
 			paramExists := make(map[string]bool)
 			i := 0 // output index
 			for _, x := range allParams {
