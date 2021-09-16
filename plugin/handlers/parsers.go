@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/pkg/errors"
 	"regexp"
 	"sort"
 	"strings"
 )
 
 var (
-	pathParamRE = regexp.MustCompile("{[.;?]?([^{}*]+)\\*?}")
+	pathParamRE = regexp.MustCompile(`{[.;?]?([^{}*]+)\\*?}`)
 )
 
 // DefineOperations returns all operations for an openApi definition.
@@ -20,10 +19,7 @@ func DefineOperations(openApi *openapi3.T) error {
 		pathItem := openApi.Paths[requestPath]
 		// These are parameters defined for all methods on a given path. They
 		// are shared by all methods.
-		globalParams, err := describeParameters(pathItem.Parameters)
-		if err != nil {
-			return fmt.Errorf("error describing global parameters for %s: %s", requestPath, err)
-		}
+		globalParams:= describeParameters(pathItem.Parameters)
 
 		// Each path can have a number of operations, POST, GET, OPTIONS, etc.
 		pathOps := pathItem.Operations()
@@ -35,10 +31,8 @@ func DefineOperations(openApi *openapi3.T) error {
 
 			// These are parameters defined for the specific path method that
 			// we're iterating over.
-			localParams, err := describeParameters(op.Parameters)
-			if err != nil {
-				return fmt.Errorf("error describing global parameters for %s/%s: %s", opName, requestPath, err)
-			}
+			localParams := describeParameters(op.Parameters)
+
 			// All the parameters required by a handler are the union of the
 			// global parameters and the local parameters.
 			allParams := append(localParams, globalParams...)
@@ -60,15 +54,12 @@ func DefineOperations(openApi *openapi3.T) error {
 			// the path, not in the openApi spec, and validate that the parameter
 			// names match, as downstream code depends on that.
 			pathParams := filterParameterDefinitionByType(allParams, "path")
-			pathParams, err = sortParamsByPath(requestPath, pathParams)
+			pathParams, err := sortParamsByPath(requestPath, pathParams)
 			if err != nil {
 				return err
 			}
 
-			bodyDefinitions, typeDefinitions, err := generateBodyDefinitions(op.OperationID, op.RequestBody)
-			if err != nil {
-				return errors.Wrap(err, "error generating body definitions")
-			}
+			bodyDefinitions, typeDefinitions := generateBodyDefinitions(op.OperationID, op.RequestBody)
 
 			opDef := OperationDefinition{
 				PathParams:   pathParams,
@@ -129,7 +120,7 @@ func sortedPathsKeys(dict openapi3.Paths) []string {
 // describeParameters This function walks the given parameters dictionary, and generates the above
 // descriptors into a flat list. This makes it a lot easier to traverse the
 // data in the template engine.
-func describeParameters(params openapi3.Parameters) ([]parameterDefinition, error) {
+func describeParameters(params openapi3.Parameters) []parameterDefinition {
 	outParams := make([]parameterDefinition, 0)
 	for _, paramOrRef := range params {
 		param := paramOrRef.Value
@@ -142,7 +133,7 @@ func describeParameters(params openapi3.Parameters) ([]parameterDefinition, erro
 		}
 		outParams = append(outParams, pd)
 	}
-	return outParams, nil
+	return outParams
 }
 
 // sortedOperationsKeys This function returns Operation dictionary keys in sorted order
@@ -228,9 +219,9 @@ func sortedSecurityRequirementKeys(sr openapi3.SecurityRequirement) []string {
 
 // generateBodyDefinitions This function turns the OpenApi body definitions into a list of our body
 // definitions which will be used for code generation.
-func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBodyRef) ([]RequestBodyDefinition, []typeDefinition, error) {
+func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBodyRef) ([]RequestBodyDefinition, []typeDefinition) {
 	if bodyOrRef == nil {
-		return nil, nil, nil
+		return nil, nil
 	}
 	body := bodyOrRef.Value
 
@@ -249,15 +240,11 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 	}
 
 	if defaultContent == nil {
-		return bodyDefinitions, typeDefinitions, nil
+		return bodyDefinitions, typeDefinitions
 	}
 
 	bodyTypeName := operationID + defaultContentType + "Body"
-	bodySchema, err := generateGoSchema(defaultContent.Schema)
-
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error generating request body definition")
-	}
+	bodySchema:= generateGoSchema(defaultContent.Schema)
 
 	// If the request has a body, but it's not a user defined
 	// type under #/components, we'll define a type for it, so
@@ -281,20 +268,20 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 	}
 	bodyDefinitions = append(bodyDefinitions, bd)
 
-	return bodyDefinitions, typeDefinitions, nil
+	return bodyDefinitions, typeDefinitions
 }
 
 // generateGoSchema generate the OpenApi schema
-func generateGoSchema(sref *openapi3.SchemaRef) (schema, error) {
+func generateGoSchema(sref *openapi3.SchemaRef) schema {
 	// Add a fallback value in case the sref is nil.
 	// i.e. the parent schema defines a type:array, but the array has
 	// no items defined. Therefore we have at least valid Go-Code.
 	if sref == nil {
-		return schema{GoType: "interface{}"}, nil
+		return schema{GoType: "interface{}"}
 	}
 
 	oApiSchema := sref.Value
-	return schema{OApiSchema: oApiSchema}, nil
+	return schema{OApiSchema: oApiSchema}
 }
 
 func generateTypeDefsForOperation(op OperationDefinition) []typeDefinition {

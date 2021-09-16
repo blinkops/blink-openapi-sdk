@@ -86,7 +86,7 @@ type typeDefinition struct {
 
 	// The name of the corresponding JSON description, as it will sometimes
 	// differ due to invalid characters.
-	jsonName string
+	jsonName string //nolint
 
 	// This is the schema wrapper is used to populate the type description
 	schema schema
@@ -139,7 +139,7 @@ type property struct {
 	jsonFieldName  string
 	schema         schema
 	required       bool
-	nullable       bool
+	nullable       bool //nolint
 	extensionProps *openapi3.ExtensionProps
 }
 
