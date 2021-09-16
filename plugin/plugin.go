@@ -481,7 +481,7 @@ func hasDuplicates(path string) bool {
 	paramsArray := strings.Split(path,".")
 	exists := make(map[string]bool)
 	for _, param := range paramsArray {
-		if exists[param] == true {
+		if exists[param] {
 			return true
 		} else {
 			exists[param] = true
