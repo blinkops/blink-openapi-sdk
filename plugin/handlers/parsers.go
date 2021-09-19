@@ -35,19 +35,19 @@ func DefineOperations(openApi *openapi3.T) error {
 
 			// All the parameters required by a handler are the union of the
 			// global parameters and the local parameters.
-			allParams := []parameterDefinition{}
+			allParams := localParams
 			for _, globalParam := range globalParams {
 				exists := false
 				for _, localParam := range localParams {
 					if globalParam.ParamName == localParam.ParamName {
 						exists = true
+						break
 					}
 				}
 				if !exists {
 					allParams = append(allParams, globalParam)
 				}
 			}
-			allParams = append(allParams, localParams...)
 
 			// Order the path parameters to match the order as specified in
 			// the path, not in the openApi spec, and validate that the parameter
