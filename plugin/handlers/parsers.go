@@ -35,20 +35,19 @@ func DefineOperations(openApi *openapi3.T) error {
 
 			// All the parameters required by a handler are the union of the
 			// global parameters and the local parameters.
-			allParams := append(localParams, globalParams...)
-
-			// Remove any duplicate names in the params array. The last occurrence will be removed
-			// because we want to prioritize the op param and not the global param
-			paramExists := make(map[string]bool)
-			i := 0 // output index
-			for _, x := range allParams {
-				if !paramExists[x.ParamName] {
-					allParams[i] = x
-					i++
-					paramExists[x.ParamName] = true
+			allParams := []parameterDefinition{}
+			for _, globalParam := range globalParams {
+				exists := false
+				for _, localParam := range localParams {
+					if globalParam.ParamName == localParam.ParamName {
+						exists = true
+					}
+				}
+				if !exists {
+					allParams = append(allParams, globalParam)
 				}
 			}
-			allParams = allParams[:i]
+			allParams = append(allParams, localParams...)
 
 			// Order the path parameters to match the order as specified in
 			// the path, not in the openApi spec, and validate that the parameter
