@@ -303,8 +303,9 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 
 		for _, pathParam := range operation.AllParams() {
 			paramName := pathParam.ParamName
-			actionParam := parseActionParam(actionName, paramName, pathParam.Spec.Schema, pathParam.Required)
-			action.Parameters[paramName] = actionParam
+			if actionParam := parseActionParam(action.Name, paramName, pathParam.Spec.Schema, pathParam.Required); actionParam != nil {
+				action.Parameters[paramName] = *actionParam
+			}
 		}
 
 		for _, paramBody := range operation.Bodies {
@@ -358,6 +359,10 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 	for propertyName, bodyProperty := range schema.Properties {
 		fullParamPath := propertyName
 
+		if hasDuplicates(parentPath + consts.BodyParamDelimiter + fullParamPath) {
+			continue
+		}
+
 		// Json params are represented as dot delimited params to allow proper parsing in UI later on
 		if parentPath != "" {
 			fullParamPath = parentPath + consts.BodyParamDelimiter + fullParamPath
@@ -377,8 +382,9 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				}
 			}
 
-			actionParam := parseActionParam(action.Name, fullParamPath, bodyProperty, isParamRequired)
-			action.Parameters[fullParamPath] = actionParam
+			if actionParam := parseActionParam(action.Name, fullParamPath, bodyProperty, isParamRequired); actionParam != nil {
+				action.Parameters[fullParamPath] = *actionParam
+			}
 		}
 	}
 }
@@ -452,7 +458,20 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 	return paramDefault
 }
 
-func parseActionParam(actionName string, paramName string, paramSchema *openapi3.SchemaRef, isParamRequired bool) plugin.ActionParameter {
+func hasDuplicates(path string) bool {
+	paramsArray := strings.Split(path, consts.BodyParamDelimiter)
+	exists := make(map[string]bool)
+	for _, param := range paramsArray {
+		if exists[param] {
+			return true
+		} else {
+			exists[param] = true
+		}
+	}
+	return false
+}
+
+func parseActionParam(actionName string, paramName string, paramSchema *openapi3.SchemaRef, isParamRequired bool) *plugin.ActionParameter {
 	paramType := paramSchema.Value.Type
 	paramFormat := paramSchema.Value.Format
 
@@ -467,34 +486,36 @@ func parseActionParam(actionName string, paramName string, paramSchema *openapi3
 	paramIndex := 999 // parameters will be ordered from lowest to highest in UI. This is the default, meaning - the end of the list.
 
 	if mask.MaskData.Actions != nil {
-		if maskedParam := mask.MaskData.GetParameter(actionName, paramName); maskedParam != nil {
-			if maskedParam.Alias != "" {
-				paramName = maskedParam.Alias
-			}
+		maskedParam := mask.MaskData.GetParameter(actionName, paramName)
+		if maskedParam == nil {
+			return nil
+		}
+		if maskedParam.Alias != "" {
+			paramName = maskedParam.Alias
+		}
 
-			// Override Required property only if not explicitly defined by OpenAPI definition
-			if !isParamRequired {
-				isParamRequired = maskedParam.Required
-			}
+		// Override Required property only if not explicitly defined by OpenAPI definition
+		if !isParamRequired {
+			isParamRequired = maskedParam.Required
+		}
 
-			// Override the Type property
-			if maskedParam.Type != "" {
-				paramType = maskedParam.Type
-			}
+		// Override the Type property
+		if maskedParam.Type != "" {
+			paramType = maskedParam.Type
+		}
 
-			if maskedParam.Index != 0 {
-				paramIndex = maskedParam.Index
-			}
+		if maskedParam.Index != 0 {
+			paramIndex = maskedParam.Index
+		}
+		return &plugin.ActionParameter{
+			Type:        paramType,
+			Description: paramSchema.Value.Description,
+			Placeholder: paramPlaceholder,
+			Required:    isParamRequired,
+			Default:     paramDefault,
+			Options:     paramOptions,
+			Index:       paramIndex,
 		}
 	}
-
-	return plugin.ActionParameter{
-		Type:        paramType,
-		Description: paramSchema.Value.Description,
-		Placeholder: paramPlaceholder,
-		Required:    isParamRequired,
-		Default:     paramDefault,
-		Options:     paramOptions,
-		Index:       paramIndex,
-	}
+	return nil
 }
