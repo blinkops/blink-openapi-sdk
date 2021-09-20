@@ -416,7 +416,7 @@ func (suite *PluginTestSuite) TestParseActionParam() {
 	paramName := "dashboard"
 	pathParam := schema.Properties[paramName]
 
-	actionParam := parseActionParam("test", paramName, pathParam, false)
+	actionParam := parseActionParam("test", &paramName, pathParam, false)
 
 	assert.False(suite.T(), actionParam.Required)
 	assert.Equal(suite.T(), actionParam.Description, "dashboard description")

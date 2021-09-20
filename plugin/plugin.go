@@ -303,7 +303,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 
 		for _, pathParam := range operation.AllParams() {
 			paramName := pathParam.ParamName
-			if actionParam := parseActionParam(action.Name, paramName, pathParam.Spec.Schema, pathParam.Required); actionParam != nil {
+			if actionParam := parseActionParam(action.Name, &paramName, pathParam.Spec.Schema, pathParam.Required); actionParam != nil {
 				action.Parameters[paramName] = *actionParam
 			}
 		}
@@ -382,7 +382,7 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				}
 			}
 
-			if actionParam := parseActionParam(action.Name, fullParamPath, bodyProperty, isParamRequired); actionParam != nil {
+			if actionParam := parseActionParam(action.Name, &fullParamPath, bodyProperty, isParamRequired); actionParam != nil {
 				action.Parameters[fullParamPath] = *actionParam
 			}
 		}
@@ -471,7 +471,7 @@ func hasDuplicates(path string) bool {
 	return false
 }
 
-func parseActionParam(actionName string, paramName string, paramSchema *openapi3.SchemaRef, isParamRequired bool) *plugin.ActionParameter {
+func parseActionParam(actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool) *plugin.ActionParameter {
 	paramType := paramSchema.Value.Type
 	paramFormat := paramSchema.Value.Format
 
@@ -486,12 +486,12 @@ func parseActionParam(actionName string, paramName string, paramSchema *openapi3
 	paramIndex := 999 // parameters will be ordered from lowest to highest in UI. This is the default, meaning - the end of the list.
 
 	if mask.MaskData.Actions != nil {
-		maskedParam := mask.MaskData.GetParameter(actionName, paramName)
+		maskedParam := mask.MaskData.GetParameter(actionName, *paramName)
 		if maskedParam == nil {
 			return nil
 		}
 		if maskedParam.Alias != "" {
-			paramName = maskedParam.Alias
+			paramName = &maskedParam.Alias
 		}
 
 		// Override Required property only if not explicitly defined by OpenAPI definition
