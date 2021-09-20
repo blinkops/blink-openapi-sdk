@@ -491,7 +491,7 @@ func parseActionParam(actionName string, paramName *string, paramSchema *openapi
 			return nil
 		}
 		if maskedParam.Alias != "" {
-			paramName = &maskedParam.Alias
+			*paramName = maskedParam.Alias
 		}
 
 		// Override Required property only if not explicitly defined by OpenAPI definition
