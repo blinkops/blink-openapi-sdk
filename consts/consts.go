@@ -26,9 +26,7 @@ const (
 
 	READMETemplate = `
 ## blink-{{ .Describe.Name }}
-
 > {{ .Describe.Description }}
-
 {{range .GetActions}}
 ## {{.Name }}
 * {{.Description }}
@@ -55,4 +53,15 @@ const (
 
 	Error = 1
 	OK    = 0
+
+	YAMLTemplate = `
+actions:{{range $action := .GetActions}}
+	{{$action.Name }}:
+		alias: {{$action.Name }}
+		parameters:{{ range $name, $param := .Parameters}}
+			{{ $name }}:
+				alias: {{$name }}{{ end}}
+{{ end}}`
+
+	MaskFile = "mask.yaml"
 )

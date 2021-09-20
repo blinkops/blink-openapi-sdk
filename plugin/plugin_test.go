@@ -122,12 +122,6 @@ func (suite *PluginTestSuite) AfterTest(_, _ string) {
 
 func (suite *PluginTestSuite) SetupSuite() {
 	myPlugin = &openApiPlugin{
-		TestCredentialsFunc: func(ctx *plugin_sdk.ActionContext) (*plugin_sdk.CredentialsValidationResponse, error) {
-			return &plugin_sdk.CredentialsValidationResponse{}, nil
-		},
-		ValidateResponse: func(response Result) (bool, []byte) {
-			return true, nil
-		},
 		actions: []plugin_sdk.Action{
 			{
 				Name:        "AddTeamMember",
