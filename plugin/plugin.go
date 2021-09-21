@@ -303,7 +303,13 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 
 		for _, pathParam := range operation.AllParams() {
 			paramName := pathParam.ParamName
-			if actionParam := parseActionParam(action.Name, &paramName, pathParam.Spec.Schema, pathParam.Required); actionParam != nil {
+			paramDescription := pathParam.Schema.Description
+
+			if paramDescription == "" {
+				paramDescription = pathParam.Spec.Description
+			}
+
+			if actionParam := parseActionParam(action.Name, &paramName, pathParam.Spec.Schema, pathParam.Required, paramDescription); actionParam != nil {
 				action.Parameters[paramName] = *actionParam
 			}
 		}
@@ -382,7 +388,7 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				}
 			}
 
-			if actionParam := parseActionParam(action.Name, &fullParamPath, bodyProperty, isParamRequired); actionParam != nil {
+			if actionParam := parseActionParam(action.Name, &fullParamPath, bodyProperty, isParamRequired, bodyProperty.Value.Description); actionParam != nil {
 				action.Parameters[fullParamPath] = *actionParam
 			}
 		}
@@ -471,7 +477,7 @@ func hasDuplicates(path string) bool {
 	return false
 }
 
-func parseActionParam(actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool) *plugin.ActionParameter {
+func parseActionParam(actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool, paramDescription string) *plugin.ActionParameter {
 	paramType := paramSchema.Value.Type
 	paramFormat := paramSchema.Value.Format
 
@@ -509,7 +515,7 @@ func parseActionParam(actionName string, paramName *string, paramSchema *openapi
 		}
 		return &plugin.ActionParameter{
 			Type:        paramType,
-			Description: paramSchema.Value.Description,
+			Description: paramDescription,
 			Placeholder: paramPlaceholder,
 			Required:    isParamRequired,
 			Default:     paramDefault,
