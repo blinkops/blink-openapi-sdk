@@ -513,15 +513,15 @@ func parseActionParam(actionName string, paramName *string, paramSchema *openapi
 		if maskedParam.Index != 0 {
 			paramIndex = maskedParam.Index
 		}
-		return &plugin.ActionParameter{
-			Type:        paramType,
-			Description: paramDescription,
-			Placeholder: paramPlaceholder,
-			Required:    isParamRequired,
-			Default:     paramDefault,
-			Options:     paramOptions,
-			Index:       paramIndex,
-		}
 	}
-	return nil
+
+	return &plugin.ActionParameter{
+		Type:        paramType,
+		Description: paramDescription,
+		Placeholder: paramPlaceholder,
+		Required:    isParamRequired,
+		Default:     paramDefault,
+		Options:     paramOptions,
+		Index:       paramIndex,
+	}
 }

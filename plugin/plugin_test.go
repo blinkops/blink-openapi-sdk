@@ -5,10 +5,9 @@ import (
 	plugin_sdk "github.com/blinkops/blink-sdk/plugin"
 	"github.com/blinkops/blink-sdk/plugin/connections"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/stretchr/testify/suite"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -416,7 +415,7 @@ func (suite *PluginTestSuite) TestParseActionParam() {
 	paramName := "dashboard"
 	pathParam := schema.Properties[paramName]
 
-	actionParam := parseActionParam("test", &paramName, pathParam, false)
+	actionParam := parseActionParam("test", &paramName, pathParam, false, pathParam.Value.Description)
 
 	assert.False(suite.T(), actionParam.Required)
 	assert.Equal(suite.T(), actionParam.Description, "dashboard description")
