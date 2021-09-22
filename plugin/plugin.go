@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"fmt"
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
@@ -445,7 +446,7 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 	var paramDefault string
 
 	if paramType != consts.TypeArray {
-		paramDefault, _ = defaultValue.(string)
+		paramDefault = fmt.Sprintf("%v", defaultValue)
 
 		return paramDefault
 	}
@@ -454,7 +455,7 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 		var defaultStrings []string
 
 		for _, value := range defaultList {
-			valueString, _ := value.(string)
+			valueString := fmt.Sprintf("%v", value)
 			defaultStrings = append(defaultStrings, valueString)
 		}
 
