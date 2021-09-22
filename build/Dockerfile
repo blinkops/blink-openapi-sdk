@@ -10,10 +10,10 @@ RUN go build ./cmd/main
 ##################
 FROM base AS test
 
-RUN COVERAGE_FLAGS='-cover -covermode=count -coverprofile=profile.cov' go test -v ${COVERAGE_FLAGS} ./... 2>&1 | tee /reports/tests_output.txt && \
-    cat /reports/tests_output.txt | go-junit-report > /reports/test_report.xml && \
-    go tool cover -func profile.cov && \
-    gocov convert profile.cov | gocov-xml > /reports/runner_coverage.xml
+RUN COVERAGE_FLAGS='-cover -covermode=count -coverprofile=profile.cov' go test -v ${COVERAGE_FLAGS} ./... #2>&1 | tee /reports/tests_output.txt && \
+#    cat /reports/tests_output.txt | go-junit-report > /reports/test_report.xml && \
+#    go tool cover -func profile.cov && \
+#    gocov convert profile.cov | gocov-xml > /reports/runner_coverage.xml
 
 ##################
 FROM scratch AS reports
