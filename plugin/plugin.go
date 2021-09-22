@@ -238,7 +238,7 @@ func GenerateMaskFile(c *cli.Context) error {
 
 			str = strings.ReplaceAll(str, "_", " ")
 			for _, s := range a {
-				if strings.ToUpper(s) == strings.ToUpper(str) {
+				if strings.EqualFold(s, str) {
 					return strings.ToUpper(s)
 				}
 
