@@ -232,7 +232,23 @@ func GenerateMaskFile(c *cli.Context) error {
 		return err
 	}
 
-	err = RunTemplate(consts.MaskFile, consts.YAMLTemplate, apiPlugin)
+	err = RunTemplate(consts.MaskFile, consts.YAMLTemplate, apiPlugin, template.FuncMap{
+		"title": func(str string) string {
+			a := []string{"url", "id", "ip", "ssl"}
+
+			str = strings.ReplaceAll(str, "_", " ")
+			for _, s := range a {
+				if strings.ToUpper(s) == strings.ToUpper(str) {
+					return strings.ToUpper(s)
+				}
+
+				str = strings.ReplaceAll(str, s, " "+strings.ToUpper(s))
+
+			}
+
+			return strings.Join(strings.Fields(strings.Title(str)), " ")
+		},
+	})
 	if err != nil {
 		return err
 	}
@@ -253,7 +269,7 @@ func GenerateMarkdown(c *cli.Context) error {
 		return err
 	}
 
-	err = RunTemplate(consts.README, consts.READMETemplate, apiPlugin)
+	err = RunTemplate(consts.README, consts.READMETemplate, apiPlugin, nil)
 	if err != nil {
 		return err
 	}
@@ -262,14 +278,14 @@ func GenerateMarkdown(c *cli.Context) error {
 
 }
 
-func RunTemplate(fileName string, templateStr string, obj interface{}) error {
+func RunTemplate(fileName string, templateStr string, obj interface{}, funcs template.FuncMap) error {
 	f, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	tmpl, err := template.New("").Funcs(funcs).Parse(templateStr)
 
-	tmpl, err := template.New("").Parse(templateStr)
 	if err != nil {
 		return err
 	}

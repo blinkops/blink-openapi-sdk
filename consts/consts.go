@@ -56,11 +56,11 @@ const (
 
 	YAMLTemplate = `
 actions:{{range $action := .GetActions}}
-	{{$action.Name }}:
-		alias: {{$action.Name }}
-		parameters:{{ range $name, $param := .Parameters}}
-			{{ $name }}:
-				alias: {{$name }}{{ end}}
+  {{$action.Name }}:
+    alias: {{ title $action.Name }}
+    parameters:{{ range $name, $param := .Parameters}}
+      {{ $name }}:
+        alias: "{{ title $name }}"{{ end}}
 {{ end}}`
 
 	MaskFile = "mask.yaml"
