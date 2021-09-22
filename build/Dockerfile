@@ -16,9 +16,9 @@ RUN COVERAGE_FLAGS='-cover -covermode=count -coverprofile=profile.cov' go test -
 #    gocov convert profile.cov | gocov-xml > /reports/runner_coverage.xml
 
 ##################
-FROM scratch AS reports
+#FROM scratch AS reports
 
-COPY --from=test /reports/runner_coverage.xml .
-COPY --from=test /reports/test_report.xml .
-COPY --from=test /reports/tests_output.txt .
+#COPY --from=test /reports/runner_coverage.xml .
+#COPY --from=test /reports/test_report.xml .
+#COPY --from=test /reports/tests_output.txt .
 
