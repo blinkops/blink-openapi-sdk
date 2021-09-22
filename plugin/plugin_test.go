@@ -384,7 +384,7 @@ func (suite *PluginTestSuite) TestExecuteAction() {
 	handler := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-Type", "application/json")
 		res.WriteHeader(http.StatusOK)
-		_, err := res.Write([]byte(fmt.Sprintf(`{"REQUEST_URL":"http://%s"}`, address)))
+		_, err := res.Write([]byte(fmt.Sprintf(`{"REQUEST_URL":"http://%s1}`, address)))
 		if err != nil {
 			assert.Nil(suite.T(), err)
 		} //nolint
