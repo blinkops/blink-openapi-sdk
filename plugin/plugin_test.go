@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"fmt"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
 	plugin_sdk "github.com/blinkops/blink-sdk/plugin"
 	"github.com/blinkops/blink-sdk/plugin/connections"
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -373,15 +375,26 @@ func (suite *PluginTestSuite) TestParseActionRequest() {
 }
 
 func (suite *PluginTestSuite) TestExecuteAction() {
-	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+	address := "127.0.0.1:8888"
+	l, err := net.Listen("tcp", address)
+	if err != nil {
+		suite.T().Error("could not start listener for httptest server")
+	}
+
+	handler := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-Type", "application/json")
 		res.WriteHeader(http.StatusOK)
-		_, err := res.Write([]byte(`{"REQUEST_URL":"test.com"}`))
+		_, err := res.Write([]byte(fmt.Sprintf(`{"REQUEST_URL":"http://%s"}`, address)))
 		if err != nil {
 			assert.Nil(suite.T(), err)
 		} //nolint
-	}))
+	})
 
+	testServer := httptest.NewUnstartedServer(handler)
+	testServer.Listener = l
+	testServer.Start()
+
+	defer testServer.Listener.Close()
 	defer func() { testServer.Close() }()
 	cns := map[string]connections.ConnectionInstance{}
 	cns["test"] = connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}
