@@ -26,6 +26,7 @@ var (
 
 type HeaderValuePrefixes map[string]string
 type HeaderAlias map[string]string
+type PathParams []string
 
 type JSONMap interface{}
 
@@ -43,6 +44,7 @@ type openApiPlugin struct {
 	ValidateResponse    func(Result) (bool, []byte)
 	HeaderValuePrefixes HeaderValuePrefixes
 	HeaderAlias         HeaderAlias
+	PathParams          PathParams
 }
 
 type PluginMetadata struct {
@@ -53,6 +55,7 @@ type PluginMetadata struct {
 	Tags                []string
 	HeaderValuePrefixes HeaderValuePrefixes
 	HeaderAlias         HeaderAlias
+	PathParams          PathParams
 }
 
 type PluginChecks struct {
@@ -206,7 +209,23 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 
 	// replace the raw parameters with their alias.
 	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters)
-	requestUrl = GetRequestUrl(actionContext, p.Describe().Provider)
+
+	provider := p.Describe().Provider
+
+	requestUrl = GetRequestUrl(actionContext, provider)
+
+	// add to request parameters
+
+	paramsFromConnection , err := getPathParamsFromConnection(actionContext, provider, p.PathParams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for k, v := range paramsFromConnection {
+		requestParameters[k] = v
+	}
+
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
 	operationUrl, err := url.Parse(requestUrl + requestPath)
 
@@ -241,6 +260,40 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 
 	return request, nil
 }
+
+func getPathParamsFromConnection(actionContext *plugin.ActionContext, provider string, params PathParams) (map[string]string, error) {
+
+	connection, err := GetCredentials(actionContext, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	paramsFromConnection := map[string]string{}
+
+	for header, headerValue := range connection {
+		if headerValueString, ok := headerValue.(string); ok {
+			header = strings.ToUpper(header)
+
+			if stringInSlice(header, params) {
+				paramsFromConnection[header] = headerValueString
+			}
+
+		}
+
+	}
+
+	return paramsFromConnection, nil
+}
+
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}
+
 
 func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*openApiPlugin, error) {
 
