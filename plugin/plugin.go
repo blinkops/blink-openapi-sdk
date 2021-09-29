@@ -216,7 +216,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 
 	// add to request parameters
 
-	paramsFromConnection, err := getPathParamsFromConnection(actionContext, provider, p.PathParams)
+	paramsFromConnection, err := GetPathParamsFromConnection(actionContext, provider, p.PathParams)
 
 	if err != nil {
 		return nil, err
@@ -261,7 +261,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	return request, nil
 }
 
-func getPathParamsFromConnection(actionContext *plugin.ActionContext, provider string, params PathParams) (map[string]string, error) {
+func GetPathParamsFromConnection(actionContext *plugin.ActionContext, provider string, params PathParams) (map[string]string, error) {
 
 	connection, err := GetCredentials(actionContext, provider)
 	if err != nil {
