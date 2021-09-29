@@ -216,7 +216,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 
 	// add to request parameters
 
-	paramsFromConnection , err := getPathParamsFromConnection(actionContext, provider, p.PathParams)
+	paramsFromConnection, err := getPathParamsFromConnection(actionContext, provider, p.PathParams)
 
 	if err != nil {
 		return nil, err
@@ -293,7 +293,6 @@ func stringInSlice(a string, list []string) bool {
 	}
 	return false
 }
-
 
 func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*openApiPlugin, error) {
 
@@ -390,6 +389,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		actions:             actions,
 		HeaderValuePrefixes: meta.HeaderValuePrefixes,
 		HeaderAlias:         meta.HeaderAlias,
+		PathParams:          meta.PathParams,
 		description: plugin.Description{
 			Name:        meta.Name,
 			Description: openApi.Info.Description,
