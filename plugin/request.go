@@ -166,7 +166,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 	}
 }
 
-// Credentials should be saved as headerName -> value according to the api definition
+// SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
 func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
 	securityHeaders, err := GetCredentials(actionContext, provider)
 
