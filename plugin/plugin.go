@@ -99,9 +99,7 @@ func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionIn
 }
 
 func (p *openApiPlugin) ActionExist(actionName string) bool {
-	log.Info(actionName)
 	for _, val := range p.actions {
-		log.Info(val.Name)
 		if val.Name == actionName {
 			return true
 		}
@@ -287,7 +285,7 @@ func GetPathParamsFromConnection(actionContext *plugin.ActionContext, provider s
 
 func stringInSlice(a string, list []string) bool {
 	for _, b := range list {
-		if b == a {
+		if strings.EqualFold(b,a){
 			return true
 		}
 	}
