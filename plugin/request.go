@@ -50,8 +50,7 @@ func parsePathParams(requestParameters map[string]string, operation *handlers.Op
 
 	for paramName, paramValue := range requestParameters {
 		for _, pathParam := range operation.PathParams {
-			if paramName == pathParam.ParamName {
-
+			if strings.EqualFold(paramName, pathParam.ParamName){
 				requestPath = strings.ReplaceAll(requestPath, consts.ParamPrefix+paramName+consts.ParamSuffix, url.QueryEscape(paramValue))
 			}
 		}
