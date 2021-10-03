@@ -270,8 +270,6 @@ func GetPathParamsFromConnection(actionContext *plugin.ActionContext, provider s
 
 	for header, headerValue := range connection {
 		if headerValueString, ok := headerValue.(string); ok {
-			header = strings.ToUpper(header)
-
 			if stringInSlice(header, params) {
 				paramsFromConnection[header] = headerValueString
 			}
@@ -285,7 +283,7 @@ func GetPathParamsFromConnection(actionContext *plugin.ActionContext, provider s
 
 func stringInSlice(a string, list []string) bool {
 	for _, b := range list {
-		if strings.EqualFold(b,a){
+		if strings.EqualFold(b, a) {
 			return true
 		}
 	}
