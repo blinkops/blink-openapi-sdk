@@ -505,7 +505,11 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 	var paramDefault string
 
 	if paramType != consts.TypeArray {
-		paramDefault = fmt.Sprintf("%v", defaultValue)
+		if defaultValue == nil {
+			paramDefault = ""
+		} else {
+			paramDefault = fmt.Sprintf("%v", defaultValue)
+		}
 
 		return paramDefault
 	}
