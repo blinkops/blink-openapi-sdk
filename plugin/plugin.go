@@ -240,14 +240,6 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	return request, nil
 }
 
-
-func GenerateMaskFile(c *cli.Context) error {
-	apiPlugin, err := NewOpenApiPlugin(nil, PluginMetadata{
-		Name:        "",
-		MaskFile:    "",
-		OpenApiFile: c.String("file"),
-	}, PluginChecks{})
-
 func GetPathParamsFromConnection(actionContext *plugin.ActionContext, provider string, params PathParams) (map[string]string, error) {
 
 	connection, err := GetCredentials(actionContext, provider)
@@ -279,7 +271,12 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*openApiPlugin, error) {
+func GenerateMaskFile(c *cli.Context) error {
+	apiPlugin, err := NewOpenApiPlugin(nil, PluginMetadata{
+		Name:        "",
+		MaskFile:    "",
+		OpenApiFile: c.String("file"),
+	}, PluginChecks{})
 
 	if err != nil {
 		return err
