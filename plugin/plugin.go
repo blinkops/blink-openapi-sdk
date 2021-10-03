@@ -10,6 +10,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
 	"html/template"
 	"io/ioutil"
 	"net/http"
@@ -36,12 +37,9 @@ type Result struct {
 }
 
 type openApiPlugin struct {
-	actions             []plugin.Action
-	description         plugin.Description
-	openApiFile         string
-	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
+	actions     []plugin.Action
+	description plugin.Description
 
-	ValidateResponse    func(Result) (bool, []byte)
 	HeaderValuePrefixes HeaderValuePrefixes
 	HeaderAlias         HeaderAlias
 	PathParams          PathParams
@@ -58,6 +56,8 @@ type PluginMetadata struct {
 	PathParams          PathParams
 }
 
+var helpingFunctions PluginChecks
+
 type PluginChecks struct {
 	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
 	ValidateResponse    func(Result) (bool, []byte)
@@ -73,28 +73,9 @@ func (p *openApiPlugin) GetActions() []plugin.Action {
 	return p.actions
 }
 
-func (p *openApiPlugin) MakeMarkdown() error {
-	f, err := os.Create(consts.README)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	tmpl, err := template.New("").Parse(consts.READMETemplate)
-	if err != nil {
-		return err
-	}
-
-	if err := tmpl.Execute(f, p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
 
-	return p.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
+	return helpingFunctions.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
 
 }
 
@@ -127,9 +108,9 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	// if no validate response function was passed no response check will occur.
-	if p.ValidateResponse != nil && len(result.Body) > 0 {
+	if helpingFunctions.ValidateResponse != nil && len(result.Body) > 0 {
 
-		if valid, msg := p.ValidateResponse(result); !valid {
+		if valid, msg := helpingFunctions.ValidateResponse(result); !valid {
 			res.ErrorCode = consts.Error
 			res.Result = msg
 		}
@@ -290,28 +271,122 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
+func GenerateMaskFile(c *cli.Context) error {
+	apiPlugin, err := NewOpenApiPlugin(nil, PluginMetadata{
+		Name:        "",
+		MaskFile:    "",
+		OpenApiFile: c.String("file"),
+	}, PluginChecks{})
+
+	if err != nil {
+		return err
+	}
+
+	err = RunTemplate(consts.MaskFile, consts.YAMLTemplate, apiPlugin, template.FuncMap{
+		"title": func(str string) string {
+			a := []string{"url", "id", "ip", "ssl"}
+
+			str = strings.ReplaceAll(str, "_", " ")
+			for _, s := range a {
+				if strings.EqualFold(s, str) {
+					return strings.ToUpper(s)
+				}
+
+				str = strings.ReplaceAll(str, s, " "+strings.ToUpper(s))
+
+			}
+
+			return strings.Join(strings.Fields(strings.Title(str)), " ")
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func GenerateMarkdown(c *cli.Context) error {
+
+	apiPlugin, err := NewOpenApiPlugin(nil, PluginMetadata{
+		Name:        c.String("name"),
+		MaskFile:    c.String("mask"),
+		OpenApiFile: c.String("file"),
+	}, PluginChecks{})
+
+	if err != nil {
+		return err
+	}
+
+	err = RunTemplate(consts.README, consts.READMETemplate, apiPlugin, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func RunTemplate(fileName string, templateStr string, obj interface{}, funcs template.FuncMap) error {
+	f, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	tmpl, err := template.New("").Funcs(funcs).Parse(templateStr)
+
+	if err != nil {
+		return err
+	}
+
+	if err := tmpl.Execute(f, obj); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*openApiPlugin, error) {
 
-	if checks.TestCredentialsFunc == nil {
-		log.Fatal("TestCredentials function is missing")
+	helpingFunctions = checks
+
+	err := mask.ParseMask(meta.MaskFile)
+
+	if err != nil {
+		return nil, errors.Errorf("Cannot parse mask file: %s", meta.MaskFile)
 	}
 
+	description, actions, err := extractActions(meta.OpenApiFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return &openApiPlugin{
+		actions:             actions,
+		HeaderValuePrefixes: meta.HeaderValuePrefixes,
+		HeaderAlias:         meta.HeaderAlias,
+		description: plugin.Description{
+			Name:        meta.Name,
+			Description: description,
+			Tags:        meta.Tags,
+			Connections: connectionTypes,
+			Provider:    meta.Provider,
+		},
+	}, nil
+}
+
+func extractActions(OpenApiFile string) (string, []plugin.Action, error) {
 	var actions []plugin.Action
 
-	openApi, err := loadOpenApi(meta.OpenApiFile)
+	openApi, err := loadOpenApi(OpenApiFile)
 
 	if err != nil {
-		return nil, err
-	}
-
-	err = mask.ParseMask(meta.MaskFile)
-
-	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	if len(openApi.Servers) == 0 {
-		return nil, errors.New("no server URL provided in OpenApi file")
+		return "", nil, errors.New("no server URL provided in OpenApi file")
 	}
 
 	// Set default openApi server
@@ -325,7 +400,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 	err = handlers.DefineOperations(openApi)
 
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	for _, operation := range handlers.OperationDefinitions {
@@ -379,22 +454,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		return actions[i].Name < actions[j].Name
 	})
 
-	return &openApiPlugin{
-		TestCredentialsFunc: checks.TestCredentialsFunc,
-		ValidateResponse:    checks.ValidateResponse,
-		actions:             actions,
-		HeaderValuePrefixes: meta.HeaderValuePrefixes,
-		HeaderAlias:         meta.HeaderAlias,
-		PathParams:          meta.PathParams,
-		description: plugin.Description{
-			Name:        meta.Name,
-			Description: openApi.Info.Description,
-			Tags:        meta.Tags,
-			Connections: connectionTypes,
-			Provider:    meta.Provider,
-		},
-		openApiFile: meta.OpenApiFile,
-	}, nil
+	return openApi.Info.Description, actions, nil
 }
 
 func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
