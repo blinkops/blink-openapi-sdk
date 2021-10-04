@@ -11,7 +11,7 @@ node ("ci") {
   pipeline.submodulesUpdate = true
   pipeline.dockerImageName = "blink-openapi-sdk"
   pipeline.isMultiImage = false
-  pipeline.runUnitTests = true
+  pipeline.runUnitTests = false
   pipeline.pushImage = false
   pipeline.tagPrefix = "v"
 
