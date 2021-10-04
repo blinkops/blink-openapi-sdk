@@ -3,7 +3,7 @@ module github.com/blinkops/blink-openapi-sdk
 go 1.16
 
 require (
-	github.com/blinkops/blink-sdk v1.0.53-0.20211004142723-cfa98379f07e
+	github.com/blinkops/blink-sdk v1.0.53-0.20211004153443-52f1963ddc89
 	github.com/getkin/kin-openapi v0.63.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.8.1
