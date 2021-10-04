@@ -6,14 +6,19 @@ import (
 	"io/ioutil"
 )
 
+const (
+	FormatDelimiter = "_"
+)
+
 var (
 	reverseActionAliasMap    = map[string]string{}
 	reverseParameterAliasMap = map[string]map[string]string{}
 	MaskData                 = &Mask{}
+	FormatPrefixes           = []string{"date"}
 )
 
 type (
-	Mask      struct {
+	Mask struct {
 		Actions map[string]*MaskedAction `yaml:"actions,omitempty"`
 	}
 	MaskedAction struct {
@@ -23,8 +28,9 @@ type (
 	MaskedActionParameter struct {
 		Alias    string `yaml:"alias,omitempty"`
 		Required bool   `yaml:"required,omitempty"`
-		Type     string `yaml:"type,omitempty"` // password/date - 2017-07-21/date-time - 2017-07-21T17:32:28Z/date-epoch - 1631399887
+		Type     string `yaml:"type,omitempty"` // password/date - 2017-07-21/date_time - 2017-07-21T17:32:28Z/date_epoch - 1631399887
 		Index    int    `yaml:"index,omitempty"`
+		IsMulti  bool   `yaml:"is_multi,omitempty"` // is this a multi-select field
 	}
 )
 
