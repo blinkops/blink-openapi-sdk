@@ -5,7 +5,7 @@ import blink.jenkins.ci.*
 
 node ("ci") {
 
-  def pipeline = new PluginPipeline(this)
+  def pipeline = new K8sServicesPipeline(this)
   pipeline.projectName = "blink-openapi-sdk"
   pipeline.mainBranchName = "master"
   pipeline.submodulesUpdate = true
