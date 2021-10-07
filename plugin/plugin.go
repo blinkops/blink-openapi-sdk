@@ -592,13 +592,9 @@ func hasDuplicates(path string) bool {
 }
 
 func parseActionParam(actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool, paramDescription string) *plugin.ActionParameter {
+	var isMulti bool
 	paramType := paramSchema.Value.Type
 	paramFormat := paramSchema.Value.Format
-
-	// Pass the specific format if specified
-	if paramFormat != "" {
-		paramType = paramFormat
-	}
 
 	paramOptions := getParamOptions(paramSchema.Value.Enum, &paramType)
 	paramPlaceholder := getParamPlaceholder(paramSchema.Value.Example, paramType)
@@ -621,11 +617,22 @@ func parseActionParam(actionName string, paramName *string, paramSchema *openapi
 
 		// Override the Type property
 		if maskedParam.Type != "" {
-			paramType = maskedParam.Type
+			extractedType := extractTypeFromFormat(maskedParam.Type)
+
+			if extractedType == "" {
+				paramType = maskedParam.Type
+			} else {
+				paramType = extractedType
+				paramFormat = maskedParam.Type
+			}
 		}
 
 		if maskedParam.Index != 0 {
 			paramIndex = maskedParam.Index
+		}
+
+		if maskedParam.IsMulti {
+			isMulti = true
 		}
 	}
 
@@ -637,5 +644,19 @@ func parseActionParam(actionName string, paramName *string, paramSchema *openapi
 		Default:     paramDefault,
 		Options:     paramOptions,
 		Index:       paramIndex,
+		Format:      paramFormat,
+		IsMulti:     isMulti,
 	}
+}
+
+func extractTypeFromFormat(paramFormat string) string {
+	paramType := strings.Split(paramFormat, mask.FormatDelimiter)[0]
+
+	for _, prefixType := range mask.FormatPrefixes {
+		if paramType == prefixType {
+			return paramType
+		}
+	}
+
+	return ""
 }
