@@ -120,11 +120,13 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 }
 
 func FixRequestURL(r *http.Request) error {
+
 	if r.URL.Scheme == "" {
 		r.URL.Scheme = "https"
 	}
-	val, err := url.Parse(r.URL.String())
+	val, err := url.Parse(strings.TrimSuffix(r.URL.String(), "/"))
 	r.URL = val
+
 	return err
 }
 
