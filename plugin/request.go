@@ -50,7 +50,7 @@ func parsePathParams(requestParameters map[string]string, operation *handlers.Op
 
 	for paramName, paramValue := range requestParameters {
 		for _, pathParam := range operation.PathParams {
-			if strings.EqualFold(paramName,pathParam.ParamName) {
+			if strings.EqualFold(paramName, pathParam.ParamName) {
 				requestPath = strings.ReplaceAll(requestPath, consts.ParamPrefix+pathParam.ParamName+consts.ParamSuffix, url.QueryEscape(paramValue))
 			}
 		}
@@ -161,6 +161,10 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 	case consts.TypeArray:
 		return strings.Split(paramValue, consts.ArrayDelimiter)
 	case consts.TypeObject:
+		if paramValue == "" {
+			paramValue = "{}"
+		}
+		
 		var jsonValue map[string]interface{}
 		if err := json.Unmarshal([]byte(paramValue), &jsonValue); err != nil {
 			return paramValue
