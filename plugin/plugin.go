@@ -227,7 +227,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 		}
 	}
 
-	if operation.Method == http.MethodPost {
+	if operation.Method == http.MethodPost || operation.Method == http.MethodPut {
 		bodyType := operation.GetDefaultBodyType()
 
 		if bodyType != "" {
