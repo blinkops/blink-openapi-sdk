@@ -160,7 +160,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 		}
 	case consts.TypeArray:
 		return strings.Split(paramValue, consts.ArrayDelimiter)
-	case consts.TypeJson:
+	case consts.TypeObject:
 		if paramValue == "" {
 			paramValue = "{}"
 		}
