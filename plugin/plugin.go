@@ -619,10 +619,6 @@ func parseActionParam(actionName string, paramName *string, paramSchema *openapi
 
 		// Override the Type property
 		if maskedParam.Type != "" {
-			if maskedParam.Type == consts.TypeObject {
-				maskedParam.Type = consts.TypeJson
-			}
-			
 			extractedType := extractTypeFromFormat(maskedParam.Type)
 
 			if extractedType == "" {
