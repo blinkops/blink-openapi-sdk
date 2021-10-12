@@ -152,7 +152,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 		} else {
 			return intValue
 		}
-	case consts.TypeBoolean:
+	case consts.TypeBoolean, consts.TypeBool:
 		if boolValue, err := strconv.ParseBool(paramValue); err != nil {
 			return paramValue
 		} else {
