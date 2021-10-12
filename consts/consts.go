@@ -5,6 +5,7 @@ const (
 	TypeInteger  = "integer"
 	TypeBoolean  = "boolean"
 	TypeObject   = "object"
+	TypeJson	 = "code:json"
 	TypeDropdown = "dropdown"
 
 	BodyParamDelimiter = "."
