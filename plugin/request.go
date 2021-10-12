@@ -152,7 +152,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 		} else {
 			return intValue
 		}
-	case consts.TypeBoolean, consts.TypeBool:
+	case consts.TypeBoolean:
 		if boolValue, err := strconv.ParseBool(paramValue); err != nil {
 			return paramValue
 		} else {
@@ -160,7 +160,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 		}
 	case consts.TypeArray:
 		return strings.Split(paramValue, consts.ArrayDelimiter)
-	case consts.TypeObject, consts.TypeJson:
+	case consts.TypeObject:
 		if paramValue == "" {
 			paramValue = "{}"
 		}
