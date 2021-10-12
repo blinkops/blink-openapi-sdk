@@ -1,7 +1,6 @@
 package mask
 
 import (
-	"github.com/blinkops/blink-openapi-sdk/consts"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	"io/ioutil"
@@ -51,9 +50,6 @@ func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionPa
 
 	if action, ok := m.Actions[originalActionName]; ok {
 		if param, ok := action.Parameters[originalParamName]; ok {
-			if param.Type == consts.TypeObject {
-				param.Type = consts.TypeJson
-			}
 			return param
 		}
 
