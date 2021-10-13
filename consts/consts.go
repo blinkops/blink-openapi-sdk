@@ -4,9 +4,9 @@ const (
 	TypeArray    = "array"
 	TypeInteger  = "integer"
 	TypeBoolean  = "boolean"
-	TypeBool	 = "bool"
+	TypeBool     = "bool"
 	TypeObject   = "object"
-	TypeJson	 = "code:json"
+	TypeJson     = "code:json"
 	TypeDropdown = "dropdown"
 
 	BodyParamDelimiter = "."
@@ -18,11 +18,10 @@ const (
 	ArrayDelimiter     = ","
 	ContentTypeHeader  = "Content-Type"
 
-	BearerAuth = "Bearer "
-	BasicAuth = "Basic "
+	BearerAuth        = "Bearer "
+	BasicAuth         = "Basic "
 	BasicAuthUsername = "USERNAME"
 	BasicAuthPassword = "PASSWORD"
-
 
 	ParamPlaceholderPrefix = "Example: "
 
