@@ -593,6 +593,15 @@ func hasDuplicates(path string) bool {
 	return false
 }
 
+func convertParamType(paramType *string) {
+	switch *paramType {
+	case consts.TypeObject:
+		*paramType = consts.TypeJson
+	case consts.TypeBoolean:
+		*paramType = consts.TypeBool
+	}
+}
+
 func parseActionParam(actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool, paramDescription string) *plugin.ActionParameter {
 	var isMulti bool
 	paramType := paramSchema.Value.Type
@@ -637,6 +646,9 @@ func parseActionParam(actionName string, paramName *string, paramSchema *openapi
 			isMulti = true
 		}
 	}
+
+	// Convert parameters of type object to code:json and parameters of type boolean to bool
+	convertParamType(&paramType)
 
 	return &plugin.ActionParameter{
 		Type:        paramType,

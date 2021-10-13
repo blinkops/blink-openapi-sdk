@@ -164,7 +164,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 		if paramValue == "" {
 			paramValue = "{}"
 		}
-		
+
 		var jsonValue map[string]interface{}
 		if err := json.Unmarshal([]byte(paramValue), &jsonValue); err != nil {
 			return paramValue
