@@ -36,7 +36,7 @@ type Result struct {
 	Body       []byte
 }
 
-type openApiPlugin struct {
+type OpenApiPlugin struct {
 	actions     []plugin.Action
 	description plugin.Description
 
@@ -63,23 +63,23 @@ type PluginChecks struct {
 	ValidateResponse    func(Result) (bool, []byte)
 }
 
-func (p *openApiPlugin) Describe() plugin.Description {
+func (p *OpenApiPlugin) Describe() plugin.Description {
 	log.Debug("Handling Describe request!")
 	return p.description
 }
 
-func (p *openApiPlugin) GetActions() []plugin.Action {
+func (p *OpenApiPlugin) GetActions() []plugin.Action {
 	log.Debug("Handling GetActions request!")
 	return p.actions
 }
 
-func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
+func (p *OpenApiPlugin) TestCredentials(conn map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
 
 	return helpingFunctions.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
 
 }
 
-func (p *openApiPlugin) ActionExist(actionName string) bool {
+func (p *OpenApiPlugin) ActionExist(actionName string) bool {
 	for _, val := range p.actions {
 		if val.Name == actionName {
 			return true
@@ -88,7 +88,7 @@ func (p *openApiPlugin) ActionExist(actionName string) bool {
 	return false
 }
 
-func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
+func (p *OpenApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
 	res := &plugin.ExecuteActionResponse{ErrorCode: consts.OK}
 	openApiRequest, err := p.parseActionRequest(actionContext, request)
 
@@ -169,7 +169,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	return result, err
 }
 
-func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+func (p *OpenApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
 
 	if !p.ActionExist(actionName) {
@@ -284,21 +284,39 @@ func GenerateMaskFile(c *cli.Context) error {
 		return err
 	}
 
-	err = RunTemplate(consts.MaskFile, consts.YAMLTemplate, apiPlugin, template.FuncMap{
-		"title": func(str string) string {
-			a := []string{"url", "id", "ip", "ssl"}
+	indexMap := map[string]int{}
 
-			str = strings.ReplaceAll(str, "_", " ")
-			for _, s := range a {
-				if strings.EqualFold(s, str) {
-					return strings.ToUpper(s)
-				}
+	genAlias := func(str string) string {
+		uppercaseWords := []string{"url", "id", "ip", "ssl"}
 
-				str = strings.ReplaceAll(str, s, " "+strings.ToUpper(s))
+		// replace _ with ' '
+		str = strings.ReplaceAll(str, "_", " ")
 
+		// iter over words in the string
+		for _, word := range strings.Split(str, " ") {
+
+			// check if the word is in out list.
+			if stringInSlice(word, uppercaseWords) {
+				str = strings.ReplaceAll(str, word, strings.ToUpper(word))
 			}
+		}
 
-			return strings.Join(strings.Fields(strings.Title(str)), " ")
+		return strings.Join(strings.Fields(strings.Title(str)), " ")
+	}
+
+	err = RunTemplate(consts.MaskFile, consts.YAMLTemplate, apiPlugin, template.FuncMap{
+		"actName": genAlias,
+		"paramName": func(str string) string {
+			a := strings.Split(genAlias(str),".")
+			return a[len(a)-1]
+		},
+		"index": func(str string) int {
+			if _, ok := indexMap[str]; ok {
+				indexMap[str] += 1
+				return indexMap[str]
+			}
+			indexMap[str] = 1
+			return 1
 		},
 	})
 	if err != nil {
@@ -349,7 +367,7 @@ func RunTemplate(fileName string, templateStr string, obj interface{}, funcs tem
 	return nil
 }
 
-func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*openApiPlugin, error) {
+func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*OpenApiPlugin, error) {
 
 	helpingFunctions = checks
 
@@ -364,7 +382,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		return nil, err
 	}
 
-	return &openApiPlugin{
+	return &OpenApiPlugin{
 		actions:             actions,
 		HeaderValuePrefixes: meta.HeaderValuePrefixes,
 		HeaderAlias:         meta.HeaderAlias,
