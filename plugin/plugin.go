@@ -89,8 +89,14 @@ func (p *openApiPlugin) ActionExist(actionName string) bool {
 }
 
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
+	connection, err := GetCredentials(actionContext, p.Describe().Provider)
+
+	if err != nil {
+		log.Warn("No credentials provided")
+	}
+
 	res := &plugin.ExecuteActionResponse{ErrorCode: consts.OK}
-	openApiRequest, err := p.parseActionRequest(actionContext, request)
+	openApiRequest, err := p.parseActionRequest(connection, request)
 
 	if err != nil {
 		res.ErrorCode = consts.Error
@@ -98,7 +104,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	result, err := ExecuteRequest(actionContext, openApiRequest, p.Describe().Provider, p.HeaderValuePrefixes, p.HeaderAlias, request.Timeout)
+	result, err := ExecuteRequestWithCredentials(connection, openApiRequest, p.HeaderValuePrefixes, p.HeaderAlias, request.Timeout)
 	res.Result = result.Body
 
 	if err != nil {
@@ -131,13 +137,23 @@ func FixRequestURL(r *http.Request) error {
 }
 
 func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32) (Result, error) {
+	connection, err := GetCredentials(actionContext, providerName)
+
+	if err != nil {
+		log.Warn("No credentials provided")
+	}
+
+	return ExecuteRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, timeout)
+}
+
+func ExecuteRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32) (Result, error) {
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
 	result := Result{}
 	log.Info(httpRequest.URL)
-	if err := SetAuthenticationHeaders(actionContext, httpRequest, providerName, headerValuePrefixes, headerAlias); err != nil {
+	if err := SetAuthenticationHeaders(connection, httpRequest, headerValuePrefixes, headerAlias); err != nil {
 		log.Error(err)
 		return result, err
 	}
@@ -169,7 +185,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	return result, err
 }
 
-func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
 
 	if !p.ActionExist(actionName) {
@@ -191,17 +207,8 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	// replace the raw parameters with their alias.
 	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters)
 
-	provider := p.Describe().Provider
-
-	requestUrl = GetRequestUrl(actionContext, provider)
-
 	// add to request parameters
-
-	paramsFromConnection, err := GetPathParamsFromConnection(actionContext, provider, p.PathParams)
-
-	if err != nil {
-		return nil, err
-	}
+	paramsFromConnection := GetPathParamsFromConnection(connection, p.PathParams)
 
 	for k, v := range paramsFromConnection {
 		requestParameters[k] = v
@@ -242,13 +249,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	return request, nil
 }
 
-func GetPathParamsFromConnection(actionContext *plugin.ActionContext, provider string, params PathParams) (map[string]string, error) {
-
-	connection, err := GetCredentials(actionContext, provider)
-	if err != nil {
-		return nil, err
-	}
-
+func GetPathParamsFromConnection(connection map[string]interface{}, params PathParams) map[string]string {
 	paramsFromConnection := map[string]string{}
 
 	for header, headerValue := range connection {
@@ -256,12 +257,10 @@ func GetPathParamsFromConnection(actionContext *plugin.ActionContext, provider s
 			if stringInSlice(header, params) {
 				paramsFromConnection[header] = headerValueString
 			}
-
 		}
-
 	}
 
-	return paramsFromConnection, nil
+	return paramsFromConnection
 }
 
 func stringInSlice(a string, list []string) bool {
