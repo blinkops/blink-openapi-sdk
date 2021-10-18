@@ -224,16 +224,14 @@ func cleanRedundantHeaders(requestHeaders *http.Header) {
 	requestHeaders.Del(consts.BasicAuthPassword)
 }
 
-func GetRequestUrl(connection map[string]interface{}) string {
+func getRequestUrlFromConnection(connection map[string]interface{}) {
 	if len(connection) == 0 {
-		return requestUrl
+		return
 	}
 
 	if explicitRequestUrl, ok := connection[consts.RequestUrlKey].(string); ok {
-		return explicitRequestUrl
+		requestUrl = explicitRequestUrl
 	}
-
-	return requestUrl
 }
 
 func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
@@ -243,7 +241,7 @@ func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[s
 		return nil, err
 	}
 
-	requestUrl = GetRequestUrl(connection)
+	getRequestUrlFromConnection(connection)
 
 	defer func() {
 		// Remove request url and leave only other authentication headers
