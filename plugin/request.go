@@ -177,13 +177,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
-func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
-	securityHeaders, err := GetCredentials(actionContext, provider)
-
-	if err != nil {
-		return err
-	}
-
+func SetAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
 	headers := make(map[string]string)
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
@@ -230,18 +224,14 @@ func cleanRedundantHeaders(requestHeaders *http.Header) {
 	requestHeaders.Del(consts.BasicAuthPassword)
 }
 
-func GetRequestUrl(actionContext *plugin.ActionContext, provider string) string {
-	connection, err := actionContext.GetCredentials(provider)
-
-	if err != nil {
-		return requestUrl
+func getRequestUrlFromConnection(connection map[string]interface{}) {
+	if len(connection) == 0 {
+		return
 	}
 
 	if explicitRequestUrl, ok := connection[consts.RequestUrlKey].(string); ok {
-		return explicitRequestUrl
+		requestUrl = explicitRequestUrl
 	}
-
-	return requestUrl
 }
 
 func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
@@ -251,8 +241,13 @@ func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[s
 		return nil, err
 	}
 
-	// Remove request url and leave only other authentication headers
-	delete(connection, consts.RequestUrlKey)
+	getRequestUrlFromConnection(connection)
+
+	defer func() {
+		// Remove request url and leave only other authentication headers
+		// We don't want to parse the URL with request params
+		delete(connection, consts.RequestUrlKey)
+	}()
 
 	return connection, nil
 }
