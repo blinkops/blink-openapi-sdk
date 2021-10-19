@@ -89,7 +89,7 @@ func (p *OpenApiPlugin) ActionExist(actionName string) bool {
 }
 
 
-func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
+func (p *OpenApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
 	connection, err := GetCredentials(actionContext, p.Describe().Provider)
 
 	if err != nil {
@@ -187,7 +187,7 @@ func ExecuteRequestWithCredentials(connection map[string]interface{}, httpReques
 }
 
 
-func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+func (p *OpenApiPlugin) parseActionRequest(connection map[string]interface{}, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
 
 	if !p.ActionExist(actionName) {
