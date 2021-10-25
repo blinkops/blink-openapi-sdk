@@ -24,8 +24,8 @@ func (suite *PluginTestSuite) TestSetAuthenticationHeaders() {
 	}))
 	defer func() { testServer.Close() }()
 
-	cns := map[string]connections.ConnectionInstance{}
-	cns["test"] = connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}
+	cns := map[string]*connections.ConnectionInstance{}
+	cns["test"] = &connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}
 	ctx := plugin_sdk.NewActionContext(map[string]interface{}{}, cns)
 
 	type args struct {

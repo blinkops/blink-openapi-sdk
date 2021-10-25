@@ -284,8 +284,8 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 	}
 	for _, tt := range tests {
 		suite.T().Run("test ExecuteRequest(): "+tt.name, func(t *testing.T) {
-			cns := map[string]connections.ConnectionInstance{}
-			cns["test"] = tt.args.cns
+			cns := map[string]*connections.ConnectionInstance{}
+			cns["test"] = &tt.args.cns
 			ctx := plugin_sdk.NewActionContext(map[string]interface{}{}, cns)
 			result, err := ExecuteRequest(ctx, tt.args.httpreq, tt.args.providerName, nil, nil, 30)
 
@@ -312,8 +312,8 @@ func (suite *PluginTestSuite) TestParseActionRequest() {
 	}))
 	defer func() { testServer.Close() }()
 
-	cns := map[string]connections.ConnectionInstance{}
-	cns["test"] = connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}
+	cns := map[string]*connections.ConnectionInstance{}
+	cns["test"] = &connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}
 	ctx := plugin_sdk.NewActionContext(map[string]interface{}{}, cns)
 
 	// handlers.DefineOperations populates a global variable (OperationDefinitions) that is REQUIRED for this run.
@@ -390,10 +390,10 @@ func (suite *PluginTestSuite) TestExecuteAction() {
 	testServer.Listener = l
 	testServer.Start()
 
-	defer testServer.Listener.Close()
+	defer testServer.Listener.Close()s
 	defer func() { testServer.Close() }()
-	cns := map[string]connections.ConnectionInstance{}
-	cns["test"] = connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}
+	cns := map[string]*connections.ConnectionInstance{}
+	cns["test"] = &connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}
 	ctx := plugin_sdk.NewActionContext(map[string]interface{}{}, cns)
 
 	executeActionRequest := &plugin_sdk.ExecuteActionRequest{Name: "InviteOrgMember", Parameters: map[string]string{"name": "123"}}
