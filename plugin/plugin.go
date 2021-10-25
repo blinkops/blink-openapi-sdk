@@ -73,7 +73,7 @@ func (p *OpenApiPlugin) GetActions() []plugin.Action {
 	return p.actions
 }
 
-func (p *OpenApiPlugin) TestCredentials(conn map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
+func (p *OpenApiPlugin) TestCredentials(conn map[string]*connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
 
 	return helpingFunctions.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
 
@@ -87,7 +87,6 @@ func (p *OpenApiPlugin) ActionExist(actionName string) bool {
 	}
 	return false
 }
-
 
 func (p *OpenApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
 	connection, err := GetCredentials(actionContext, p.Describe().Provider)
@@ -185,7 +184,6 @@ func ExecuteRequestWithCredentials(connection map[string]interface{}, httpReques
 
 	return result, err
 }
-
 
 func (p *OpenApiPlugin) parseActionRequest(connection map[string]interface{}, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
@@ -308,7 +306,7 @@ func GenerateMaskFile(c *cli.Context) error {
 	err = RunTemplate(consts.MaskFile, consts.YAMLTemplate, apiPlugin, template.FuncMap{
 		"actName": genAlias,
 		"paramName": func(str string) string {
-			a := strings.Split(genAlias(str),".")
+			a := strings.Split(genAlias(str), ".")
 			return a[len(a)-1]
 		},
 		"index": func(str string) int {
@@ -622,14 +620,18 @@ func convertParamType(paramType *string) {
 }
 
 func parseActionParam(actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool, paramDescription string) *plugin.ActionParameter {
-	var isMulti bool
+	var (
+		isMulti    bool
+		paramIndex int64
+	)
+	
 	paramType := paramSchema.Value.Type
 	paramFormat := paramSchema.Value.Format
 
 	paramOptions := getParamOptions(paramSchema.Value.Enum, &paramType)
 	paramPlaceholder := getParamPlaceholder(paramSchema.Value.Example, paramType)
 	paramDefault := getParamDefault(paramSchema.Value.Default, paramType)
-	paramIndex := 999 // parameters will be ordered from lowest to highest in UI. This is the default, meaning - the end of the list.
+	paramIndex = 999 // parameters will be ordered from lowest to highest in UI. This is the default, meaning - the end of the list.
 
 	if mask.MaskData.Actions != nil {
 		maskedParam := mask.MaskData.GetParameter(actionName, *paramName)
