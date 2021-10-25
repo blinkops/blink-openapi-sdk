@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	myPlugin *OpenApiPlugin
+	myPlugin *openApiPlugin
 	schemaByte = []byte(`{
  "description": "Folder details",
  "properties": {
@@ -121,7 +121,7 @@ func (suite *PluginTestSuite) AfterTest(_, _ string) {
 }
 
 func (suite *PluginTestSuite) SetupSuite() {
-	myPlugin = &OpenApiPlugin{
+	myPlugin = &openApiPlugin{
 		actions: []plugin_sdk.Action{
 			{
 				Name:        "AddTeamMember",

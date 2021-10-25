@@ -177,26 +177,37 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
-func SetAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request, provider string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
-	securityHeaders, err := GetCredentials(actionContext, provider)
-
+func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request) error {
+	securityHeaders, err := GetCredentials(actionContext, p.Describe().Provider)
 	if err != nil {
 		return err
+	}
+
+	var generatedToken string
+	if p.HelpingFunctions.ManipulateCredentials != nil {
+		generatedToken, err = p.HelpingFunctions.ManipulateCredentials(securityHeaders)
+		if err != nil {
+			return err
+		}
 	}
 
 	headers := make(map[string]string)
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
+			// if we used the manipulatecredentials function to generate a token, we will replace the headValueString (user input) with the generated token
+			if generatedToken != "" {
+				headerValueString = generatedToken
+			}
 			header = strings.ToUpper(header)
 			// if the header is in our alias map replace it with the value in the map
 			// TOKEN -> AUTHORIZATION
-			if val, ok := headerAlias[header]; ok {
+			if val, ok := p.HeaderAlias[header]; ok {
 				header = strings.ToUpper(val)
 			}
 
 			// we want to help the user by adding prefixes he might have missed
 			// for example:   Bearer <TOKEN>
-			if val, ok := headerValuePrefixes[header]; ok {
+			if val, ok := p.HeaderValuePrefixes[header]; ok {
 				if !strings.HasPrefix(headerValueString, val) { // check what prefix the user doesn't have
 					// add the prefix
 					headerValueString = val + headerValueString
@@ -230,7 +241,7 @@ func cleanRedundantHeaders(requestHeaders *http.Header) {
 	requestHeaders.Del(consts.BasicAuthPassword)
 }
 
-func GetRequestUrl(actionContext *plugin.ActionContext, provider string) string {
+func GetRequestUrl(requestUrl string, actionContext *plugin.ActionContext, provider string) string {
 	connection, err := actionContext.GetCredentials(provider)
 
 	if err != nil {

@@ -65,5 +65,5 @@ actions:{{range $action := .GetActions}}
         index: {{ index $action.Name }}{{ end}}
 {{ end}}`
 
-	MaskFile = "mask.yaml"
+	MaskFile = "bigquery-mask.yaml"
 )

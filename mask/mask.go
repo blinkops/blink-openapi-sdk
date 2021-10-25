@@ -11,15 +11,14 @@ const (
 )
 
 var (
-	reverseActionAliasMap    = map[string]string{}
-	reverseParameterAliasMap = map[string]map[string]string{}
-	MaskData                 = &Mask{}
-	FormatPrefixes           = []string{"date"}
+	FormatPrefixes           = [...]string{"date"}
 )
 
 type (
 	Mask struct {
 		Actions map[string]*MaskedAction `yaml:"actions,omitempty"`
+		ReverseActionAliasMap map[string]string
+		ReverseParameterAliasMap map[string]map[string]string
 	}
 	MaskedAction struct {
 		Alias      string                            `yaml:"alias,omitempty"`
@@ -34,8 +33,32 @@ type (
 	}
 )
 
+// ParseMask recieves a mask file, parses it and returns a new mask object.
+func ParseMask(maskFile string) (Mask, error) {
+	if maskFile == "" {
+		return Mask{}, nil
+	}
+
+	mask := Mask{}
+	rawMaskData, err := ioutil.ReadFile(maskFile)
+
+	if err != nil {
+		return Mask{}, err
+	}
+
+	if err = yaml.Unmarshal(rawMaskData, &mask); err != nil {
+		return Mask{}, err
+	}
+
+	mask.buildActionAliasMap()
+	mask.buildParamAliasMap()
+
+	return mask, nil
+}
+
+// GetAction recieves an action's name and returns
 func (m *Mask) GetAction(actionName string) *MaskedAction {
-	originalActionName := ReplaceActionAlias(actionName)
+	originalActionName := m.ReplaceActionAlias(actionName)
 
 	if action, ok := m.Actions[originalActionName]; ok {
 		return action
@@ -45,8 +68,8 @@ func (m *Mask) GetAction(actionName string) *MaskedAction {
 }
 
 func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionParameter {
-	originalActionName := ReplaceActionAlias(actionName)
-	originalParamName := replaceActionParameterAlias(actionName, paramName)
+	originalActionName := m.ReplaceActionAlias(actionName)
+	originalParamName := replaceActionParameterAlias(m.ReverseParameterAliasMap, actionName, paramName)
 
 	if action, ok := m.Actions[originalActionName]; ok {
 		if param, ok := action.Parameters[originalParamName]; ok {
@@ -59,43 +82,27 @@ func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionPa
 	return nil
 }
 
-func ParseMask(maskFile string) error {
-	if maskFile == "" {
-		return nil
-	}
 
-	maskData, err := ioutil.ReadFile(maskFile)
 
-	if err != nil {
-		return err
-	}
+func (m *Mask) buildActionAliasMap() {
+	reverseActionAliasMap := map[string]string{}
 
-	if err = yaml.Unmarshal(maskData, MaskData); err != nil {
-		return err
-	}
-
-	buildActionAliasMap()
-	buildParamAliasMap()
-
-	return nil
-}
-
-func buildActionAliasMap() {
-	for originalName, actionData := range MaskData.Actions {
+	for originalName, actionData := range m.Actions {
 		if actionData.Alias != "" {
-
 			if _, ok := reverseActionAliasMap[actionData.Alias]; ok {
 				// error
 				log.Fatalln("Alias " + actionData.Alias + " exist multiple times.")
 			}
-
 			reverseActionAliasMap[actionData.Alias] = originalName
 		}
 	}
+
+	m.ReverseActionAliasMap = reverseActionAliasMap
 }
 
-func buildParamAliasMap() {
-	for actionName, actionData := range MaskData.Actions {
+func (m *Mask) buildParamAliasMap() {
+	reverseParameterAliasMap := map[string]map[string]string{}
+	for actionName, actionData := range m.Actions {
 		reverseParameterAliasMap[actionName] = map[string]string{}
 
 		for originalName, parameterData := range actionData.Parameters {
@@ -104,31 +111,30 @@ func buildParamAliasMap() {
 			}
 		}
 	}
+	m.ReverseParameterAliasMap = reverseParameterAliasMap
 }
 
-func ReplaceActionAlias(actionName string) string {
-	if originalName, ok := reverseActionAliasMap[actionName]; ok {
+func (m *Mask) ReplaceActionAlias(actionName string) string {
+	if originalName, ok := m.ReverseActionAliasMap[actionName]; ok {
 		return originalName
 	}
-
 	return actionName
 }
 
-func replaceActionParameterAlias(actionName string, paramName string) string {
+func replaceActionParameterAlias(reverseParameterAliasMap map[string]map[string]string, actionName string, paramName string) string {
 	if actionParams, ok := reverseParameterAliasMap[actionName]; ok {
 		if originalName, ok := actionParams[paramName]; ok {
 			return originalName
 		}
 	}
-
 	return paramName
 }
 
-func ReplaceActionParametersAliases(originalActionName string, rawParameters map[string]string) map[string]string {
+func (m *Mask) ReplaceActionParametersAliases(originalActionName string, rawParameters map[string]string) map[string]string {
 	requestParameters := map[string]string{}
 
 	for paramName, paramValue := range rawParameters {
-		originalName := replaceActionParameterAlias(originalActionName, paramName)
+		originalName := replaceActionParameterAlias(m.ReverseParameterAliasMap, originalActionName, paramName)
 		requestParameters[originalName] = paramValue
 	}
 
