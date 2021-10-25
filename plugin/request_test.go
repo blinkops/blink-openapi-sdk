@@ -48,7 +48,11 @@ func (suite *PluginTestSuite) TestSetAuthenticationHeaders() {
 	}
 	for _, tt := range tests {
 		suite.T().Run("test parseActionRequest(): "+tt.name, func(t *testing.T) {
-			err := SetAuthenticationHeaders(ctx, tt.args.httpreq, "test", nil, nil)
+			plugin := openApiPlugin{
+				HeaderValuePrefixes: HeaderValuePrefixes{"AUTHORIZATION": "Bearer "},
+				HeaderAlias: HeaderAlias{"CREDENTIALS": "AUTHORIZATION"},
+			}
+			err := plugin.setAuthenticationHeaders(ctx, tt.args.httpreq)
 			require.Nil(t, err)
 			assert.Contains(t, tt.args.httpreq.Header, "Authorization")
 			splitSlice := strings.Split(tt.args.httpreq.Header["Authorization"][0], " ")
