@@ -191,13 +191,15 @@ func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionCon
 		}
 	}
 
+	// if we used the manipulatecredentials function to generate a token, we will replace the headValueString (user input) with the generated token
+	if generatedToken != "" {
+		request.Header.Set("Authorization", "Bearer " + generatedToken)
+		return nil
+	}
+
 	headers := make(map[string]string)
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
-			// if we used the manipulatecredentials function to generate a token, we will replace the headValueString (user input) with the generated token
-			if generatedToken != "" {
-				headerValueString = generatedToken
-			}
 			header = strings.ToUpper(header)
 			// if the header is in our alias map replace it with the value in the map
 			// TOKEN -> AUTHORIZATION
