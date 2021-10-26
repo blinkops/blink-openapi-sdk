@@ -234,13 +234,14 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 		wantErr string
 	}{
 		{
-			name: "sad path: missing in action context",
+			name: "sad path: missing in action context", // No connection doesn't return an error as it may not be mandatory
 			args: args{providerName: "some-bad-provider",
 				httpreq: &http.Request{Method: "POST",
-					URL:    &url.URL{Scheme: "http", Host: u.Host, Path: u.Path},
+					URL: &url.URL{Scheme: "http",
+						Host: u.Host, Path: u.Path},
 					Header: map[string][]string{"Authorization": {"test1", "test2"}}},
 				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}},
-			wantErr: "missing in action context",
+			wantErr: "",
 		},
 		{
 			name: "sad path: no such host",
