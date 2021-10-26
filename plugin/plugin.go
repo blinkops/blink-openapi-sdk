@@ -25,7 +25,7 @@ type HeaderValuePrefixes map[string]string
 type HeaderAlias map[string]string
 type PathParams []string
 type JSONMap interface{}
-
+type ManipulateCredentials func(map[string]interface{}) (string, error)
 type Result struct {
 	StatusCode int
 	Body       []byte
@@ -33,14 +33,13 @@ type Result struct {
 
 type openApiPlugin struct {
 	actions     []plugin.Action
-	description plugin.Description
-	RequestUrl			string
-	HeaderValuePrefixes HeaderValuePrefixes
-	HeaderAlias         HeaderAlias
-	PathParams          PathParams
-
-	Mask 				mask.Mask
-	HelpingFunctions 	PluginChecks
+	description         plugin.Description
+	requestUrl          string
+	headerValuePrefixes HeaderValuePrefixes
+	headerAlias         HeaderAlias
+	pathParams          PathParams
+	mask             mask.Mask
+	helpingFunctions PluginChecks
 }
 
 type PluginMetadata struct {
@@ -55,9 +54,9 @@ type PluginMetadata struct {
 }
 
 type PluginChecks struct {
-	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
+	TestCredentialsFunc func(*plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
 	ValidateResponse    func(Result) (bool, []byte)
-	ManipulateCredentials func(credentials map[string]interface{}) (string, error)
+	ManipulateCredentials func(map[string]interface{}) (string, error)
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
@@ -70,13 +69,13 @@ func (p *openApiPlugin) GetActions() []plugin.Action {
 	return p.actions
 }
 
-func (p *openApiPlugin) TestCredentials(conn map[string]connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
-	return p.HelpingFunctions.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
+func (p *openApiPlugin) TestCredentials(conn map[string]*connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
+	return p.helpingFunctions.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
 
 }
 
-func ActionExist(actions []plugin.Action, actionName string) bool {
-	for _, val := range actions {
+func (p *openApiPlugin) actionExist(actionName string) bool {
+	for _, val := range p.actions {
 		if val.Name == actionName {
 			return true
 		}
@@ -85,8 +84,16 @@ func ActionExist(actions []plugin.Action, actionName string) bool {
 }
 
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
+	connection, err := getCredentials(actionContext, p.Describe().Provider)
+	p.requestUrl = getRequestUrlFromConnection(p.requestUrl, connection)
+
+	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
+	if err != nil {
+		log.Warn("No credentials provided")
+	}
+
 	res := &plugin.ExecuteActionResponse{ErrorCode: consts.OK}
-	openApiRequest, err := p.parseActionRequest(actionContext, request)
+	openApiRequest, err := p.parseActionRequest(connection, request)
 
 	if err != nil {
 		res.ErrorCode = consts.Error
@@ -94,7 +101,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	result, err := p.executeRequest(actionContext, openApiRequest, request.Timeout)
+	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.helpingFunctions.ManipulateCredentials, request.Timeout)
 	res.Result = result.Body
 
 	if err != nil {
@@ -104,9 +111,9 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	// if no validate response function was passed no response check will occur.
-	if p.HelpingFunctions.ValidateResponse != nil && len(result.Body) > 0 {
+	if p.helpingFunctions.ValidateResponse != nil && len(result.Body) > 0 {
 
-		if valid, msg := p.HelpingFunctions.ValidateResponse(result); !valid {
+		if valid, msg := p.helpingFunctions.ValidateResponse(result); !valid {
 			res.ErrorCode = consts.Error
 			res.Result = msg
 		}
@@ -115,7 +122,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	return res, nil
 }
 
-func FixRequestURL(r *http.Request) error {
+func fixRequestURL(r *http.Request) error {
 
 	if r.URL.Scheme == "" {
 		r.URL.Scheme = "https"
@@ -126,19 +133,31 @@ func FixRequestURL(r *http.Request) error {
 	return err
 }
 
-func  (p *openApiPlugin) executeRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, timeout int32) (Result, error) {
+// ExecuteRequest is used by the 'validate' method in most openapi plugins.
+func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, manipulateCredentials ManipulateCredentials) (Result, error) {
+	connection, err := getCredentials(actionContext, providerName)
+
+	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
+	if err != nil {
+		log.Warn("No credentials provided")
+	}
+
+	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, manipulateCredentials, timeout)
+}
+
+func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, manipulateCredentials ManipulateCredentials, timeout int32) (Result, error) {
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
 	result := Result{}
 	log.Info(httpRequest.URL)
-	if err := p.setAuthenticationHeaders(actionContext, httpRequest); err != nil {
+	if err := setAuthenticationHeaders(connection, httpRequest, manipulateCredentials, headerValuePrefixes, headerAlias); err != nil {
 		log.Error(err)
 		return result, err
 	}
 
-	if err := FixRequestURL(httpRequest); err != nil {
+	if err := fixRequestURL(httpRequest); err != nil {
 		log.Error(err)
 		return result, err
 	}
@@ -165,16 +184,16 @@ func  (p *openApiPlugin) executeRequest(actionContext *plugin.ActionContext, htt
 	return result, err
 }
 
-func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 	actionName := executeActionRequest.Name
 
-	if !ActionExist(p.actions, actionName) {
+	if !p.actionExist(actionName) {
 		err := errors.New("No such method")
 		log.Error(err)
 		return nil, err
 	}
 
-	actionName = p.Mask.ReplaceActionAlias(actionName)
+	actionName = p.mask.ReplaceActionAlias(actionName)
 	operation := handlers.OperationDefinitions[actionName]
 
 	// get the parameters from the request.
@@ -185,15 +204,10 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	}
 
 	// replace the raw parameters with their alias.
-	requestParameters := p.Mask.ReplaceActionParametersAliases(actionName, rawParameters)
-
-	provider := p.Describe().Provider
-
-	p.RequestUrl = GetRequestUrl(p.RequestUrl, actionContext, provider)
+	requestParameters := p.mask.ReplaceActionParametersAliases(actionName, rawParameters)
 
 	// add to request parameters
-
-	paramsFromConnection, err := GetPathParamsFromConnection(actionContext, provider, p.PathParams)
+	paramsFromConnection, err := getPathParamsFromConnection(connection, p.pathParams)
 
 	if err != nil {
 		return nil, err
@@ -204,7 +218,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	}
 
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
-	operationUrl, err := url.Parse(p.RequestUrl + requestPath)
+	operationUrl, err := url.Parse(p.requestUrl + requestPath)
 
 	if err != nil {
 		return nil, err
@@ -238,13 +252,7 @@ func (p *openApiPlugin) parseActionRequest(actionContext *plugin.ActionContext, 
 	return request, nil
 }
 
-func GetPathParamsFromConnection(actionContext *plugin.ActionContext, provider string, params PathParams) (map[string]string, error) {
-
-	connection, err := GetCredentials(actionContext, provider)
-	if err != nil {
-		return nil, err
-	}
-
+func getPathParamsFromConnection(connection map[string]interface{}, params PathParams) (map[string]string, error) {
 	paramsFromConnection := map[string]string{}
 
 	for header, headerValue := range connection {
@@ -300,10 +308,10 @@ func GenerateMaskFile(c *cli.Context) error {
 		return strings.Join(strings.Fields(strings.Title(str)), " ")
 	}
 
-	err = RunTemplate(consts.MaskFile, consts.YAMLTemplate, apiPlugin, template.FuncMap{
+	err = runTemplate(consts.MaskFile, consts.YAMLTemplate, apiPlugin, template.FuncMap{
 		"actName": genAlias,
 		"paramName": func(str string) string {
-			a := strings.Split(genAlias(str),".")
+			a := strings.Split(genAlias(str), ".")
 			return a[len(a)-1]
 		},
 		"index": func(str string) int {
@@ -335,7 +343,7 @@ func GenerateMarkdown(c *cli.Context) error {
 		return err
 	}
 
-	err = RunTemplate(consts.README, consts.READMETemplate, apiPlugin, nil)
+	err = runTemplate(consts.README, consts.READMETemplate, apiPlugin, nil)
 	if err != nil {
 		return err
 	}
@@ -344,7 +352,7 @@ func GenerateMarkdown(c *cli.Context) error {
 
 }
 
-func RunTemplate(fileName string, templateStr string, obj interface{}, funcs template.FuncMap) error {
+func runTemplate(fileName string, templateStr string, obj interface{}, funcs template.FuncMap) error {
 	f, err := os.Create(fileName)
 	if err != nil {
 		return err
@@ -378,8 +386,8 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 
 	return &openApiPlugin{
 		actions:             actions,
-		HeaderValuePrefixes: meta.HeaderValuePrefixes,
-		HeaderAlias:         meta.HeaderAlias,
+		headerValuePrefixes: meta.HeaderValuePrefixes,
+		headerAlias:         meta.HeaderAlias,
 		description: plugin.Description{
 			Name:        meta.Name,
 			Description: description,
@@ -387,9 +395,9 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 			Connections: connectionTypes,
 			Provider:    meta.Provider,
 		},
-		Mask: mask,
-		RequestUrl: requestUrl,
-		HelpingFunctions: checks,
+		mask:             mask,
+		requestUrl:       requestUrl,
+		helpingFunctions: checks,
 	}, nil
 }
 
@@ -618,14 +626,18 @@ func convertParamType(paramType *string) {
 }
 
 func parseActionParam(maskData mask.Mask, actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool, paramDescription string) *plugin.ActionParameter {
-	var isMulti bool
+	var (
+		isMulti    bool
+		paramIndex int64
+	)
+
 	paramType := paramSchema.Value.Type
 	paramFormat := paramSchema.Value.Format
 
 	paramOptions := getParamOptions(paramSchema.Value.Enum, &paramType)
 	paramPlaceholder := getParamPlaceholder(paramSchema.Value.Example, paramType)
 	paramDefault := getParamDefault(paramSchema.Value.Default, paramType)
-	paramIndex := 999 // parameters will be ordered from lowest to highest in UI. This is the default, meaning - the end of the list.
+	paramIndex = 999 // parameters will be ordered from lowest to highest in UI. This is the default, meaning - the end of the list.
 
 	if maskData.Actions != nil {
 		maskedParam := maskData.GetParameter(actionName, *paramName)

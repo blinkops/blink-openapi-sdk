@@ -177,15 +177,11 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
-func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionContext, request *http.Request) error {
-	securityHeaders, err := GetCredentials(actionContext, p.Describe().Provider)
-	if err != nil {
-		return err
-	}
-
+func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, manipulateCredentials ManipulateCredentials, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
 	var generatedToken string
-	if p.HelpingFunctions.ManipulateCredentials != nil {
-		generatedToken, err = p.HelpingFunctions.ManipulateCredentials(securityHeaders)
+	var err error
+	if manipulateCredentials != nil {
+		generatedToken, err = manipulateCredentials(securityHeaders)
 		if err != nil {
 			return err
 		}
@@ -193,7 +189,7 @@ func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionCon
 
 	// if we used the manipulatecredentials function to generate a token, we will set the generated token as an access token
 	if generatedToken != "" {
-		for headerKey, headerPrefix := range p.HeaderValuePrefixes {
+		for headerKey, headerPrefix := range prefixes {
 			request.Header.Set(headerKey, headerPrefix + generatedToken)
 			return nil
 		}
@@ -205,13 +201,13 @@ func (p *openApiPlugin) setAuthenticationHeaders(actionContext *plugin.ActionCon
 			header = strings.ToUpper(header)
 			// if the header is in our alias map replace it with the value in the map
 			// TOKEN -> AUTHORIZATION
-			if val, ok := p.HeaderAlias[header]; ok {
+			if val, ok := headerAlias[header]; ok {
 				header = strings.ToUpper(val)
 			}
 
 			// we want to help the user by adding prefixes he might have missed
 			// for example:   Bearer <TOKEN>
-			if val, ok := p.HeaderValuePrefixes[header]; ok {
+			if val, ok := prefixes[header]; ok {
 				if !strings.HasPrefix(headerValueString, val) { // check what prefix the user doesn't have
 					// add the prefix
 					headerValueString = val + headerValueString
@@ -245,29 +241,22 @@ func cleanRedundantHeaders(requestHeaders *http.Header) {
 	requestHeaders.Del(consts.BasicAuthPassword)
 }
 
-func GetRequestUrl(requestUrl string, actionContext *plugin.ActionContext, provider string) string {
-	connection, err := actionContext.GetCredentials(provider)
-
-	if err != nil {
-		return requestUrl
-	}
-
+func getRequestUrlFromConnection(requestUrl string, connection map[string]interface{}) string {
 	if explicitRequestUrl, ok := connection[consts.RequestUrlKey].(string); ok {
 		return explicitRequestUrl
 	}
-
 	return requestUrl
 }
 
-func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
+func getCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
 	connection, err := actionContext.GetCredentials(provider)
-
 	if err != nil {
 		return nil, err
 	}
-
-	// Remove request url and leave only other authentication headers
-	delete(connection, consts.RequestUrlKey)
-
+	defer func() {
+		// Remove request url and leave only other authentication headers
+		// We don't want to parse the URL with request params
+		delete(connection, consts.RequestUrlKey)
+	}()
 	return connection, nil
 }
