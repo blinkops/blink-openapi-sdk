@@ -14,7 +14,8 @@ const (
   {{$action.Name }}:
     alias: {{ actName $action.Name }}
     parameters:{{ range $name, $param := .Parameters}}
-      {{ $name }}:
+      {{ if badPrefix $name }}"{{$name}}":
+      {{- else }}{{$name}}:{{end}}
         alias: "{{ paramName $name }}"
         {{- if $param.Required }}
         required: true{{end}}
@@ -87,6 +88,12 @@ func GenerateMaskFile(c *cli.Context) error {
 		"paramName": func(str string) string {
 			a := strings.Split(genAlias(str), ".")
 			return a[len(a)-1]
+		},
+		"badPrefix": func(str string) bool {
+			if strings.HasPrefix(str, "@") {
+				return true
+			}
+			return false
 		},
 		"index": func(str string) int {
 			if _, ok := indexMap[str]; ok {
