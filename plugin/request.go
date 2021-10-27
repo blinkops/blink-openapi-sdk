@@ -177,21 +177,20 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
-func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, manipulateCredentials ManipulateCredentials, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
-	var generatedToken string
-	var err error
-	if manipulateCredentials != nil {
-		generatedToken, err = manipulateCredentials(securityHeaders)
+func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, getTokenFromCrendentials GetTokenFromCredentials, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
+
+	// If a GetTokenFromCredentials was passed AND there's no "Token" header, generate a token with the function.
+	// When there's a "Token" field in the security headers, it will be first priority
+	if _, ok := securityHeaders["Token"]; getTokenFromCrendentials != nil && !ok {
+		generatedToken, err := getTokenFromCrendentials(securityHeaders)
 		if err != nil {
 			return err
 		}
-	}
-
-	// if we used the manipulatecredentials function to generate a token, we will set the generated token as an access token
-	if generatedToken != "" {
-		for headerKey, headerPrefix := range prefixes {
-			request.Header.Set(headerKey, headerPrefix + generatedToken)
-			return nil
+		if generatedToken != "" {
+			for headerKey, headerPrefix := range prefixes {
+				request.Header.Set(headerKey, headerPrefix + generatedToken)
+				return nil
+			}
 		}
 	}
 

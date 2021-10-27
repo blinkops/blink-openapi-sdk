@@ -10,12 +10,9 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
-	"html/template"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -25,7 +22,7 @@ type HeaderValuePrefixes map[string]string
 type HeaderAlias map[string]string
 type PathParams []string
 type JSONMap interface{}
-type ManipulateCredentials func(map[string]interface{}) (string, error)
+type GetTokenFromCredentials func(map[string]interface{}) (string, error)
 type Result struct {
 	StatusCode int
 	Body       []byte
@@ -56,7 +53,7 @@ type PluginMetadata struct {
 type PluginChecks struct {
 	TestCredentialsFunc func(*plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
 	ValidateResponse    func(Result) (bool, []byte)
-	ManipulateCredentials func(map[string]interface{}) (string, error)
+	GetTokenFromCrendentials GetTokenFromCredentials
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
@@ -101,7 +98,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.helpingFunctions.ManipulateCredentials, request.Timeout)
+	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.helpingFunctions.GetTokenFromCrendentials, request.Timeout)
 	res.Result = result.Body
 
 	if err != nil {
@@ -134,7 +131,7 @@ func fixRequestURL(r *http.Request) error {
 }
 
 // ExecuteRequest is used by the 'validate' method in most openapi plugins.
-func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, manipulateCredentials ManipulateCredentials) (Result, error) {
+func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, manipulateCredentials GetTokenFromCredentials) (Result, error) {
 	connection, err := getCredentials(actionContext, providerName)
 
 	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
@@ -145,7 +142,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, manipulateCredentials, timeout)
 }
 
-func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, manipulateCredentials ManipulateCredentials, timeout int32) (Result, error) {
+func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, manipulateCredentials GetTokenFromCredentials, timeout int32) (Result, error) {
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}
@@ -257,7 +254,7 @@ func getPathParamsFromConnection(connection map[string]interface{}, params PathP
 
 	for header, headerValue := range connection {
 		if headerValueString, ok := headerValue.(string); ok {
-			if stringInSlice(header, params) {
+			if StringInSlice(header, params) {
 				paramsFromConnection[header] = headerValueString
 			}
 
@@ -268,107 +265,13 @@ func getPathParamsFromConnection(connection map[string]interface{}, params PathP
 	return paramsFromConnection, nil
 }
 
-func stringInSlice(a string, list []string) bool {
+func StringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if strings.EqualFold(b, a) {
 			return true
 		}
 	}
 	return false
-}
-
-func GenerateMaskFile(c *cli.Context) error {
-	apiPlugin, err := NewOpenApiPlugin(nil, PluginMetadata{
-		Name:        "",
-		MaskFile:    "",
-		OpenApiFile: c.String("file"),
-	}, PluginChecks{})
-
-	if err != nil {
-		return err
-	}
-
-	indexMap := map[string]int{}
-
-	genAlias := func(str string) string {
-		uppercaseWords := []string{"url", "id", "ip", "ssl"}
-
-		// replace _ with ' '
-		str = strings.ReplaceAll(str, "_", " ")
-
-		// iter over words in the string
-		for _, word := range strings.Split(str, " ") {
-
-			// check if the word is in out list.
-			if stringInSlice(word, uppercaseWords) {
-				str = strings.ReplaceAll(str, word, strings.ToUpper(word))
-			}
-		}
-
-		return strings.Join(strings.Fields(strings.Title(str)), " ")
-	}
-
-	err = runTemplate(consts.MaskFile, consts.YAMLTemplate, apiPlugin, template.FuncMap{
-		"actName": genAlias,
-		"paramName": func(str string) string {
-			a := strings.Split(genAlias(str), ".")
-			return a[len(a)-1]
-		},
-		"index": func(str string) int {
-			if _, ok := indexMap[str]; ok {
-				indexMap[str] += 1
-				return indexMap[str]
-			}
-			indexMap[str] = 1
-			return 1
-		},
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-
-}
-
-func GenerateMarkdown(c *cli.Context) error {
-
-	apiPlugin, err := NewOpenApiPlugin(nil, PluginMetadata{
-		Name:        c.String("name"),
-		MaskFile:    c.String("mask"),
-		OpenApiFile: c.String("file"),
-	}, PluginChecks{})
-
-	if err != nil {
-		return err
-	}
-
-	err = runTemplate(consts.README, consts.READMETemplate, apiPlugin, nil)
-	if err != nil {
-		return err
-	}
-
-	return nil
-
-}
-
-func runTemplate(fileName string, templateStr string, obj interface{}, funcs template.FuncMap) error {
-	f, err := os.Create(fileName)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	tmpl, err := template.New("").Funcs(funcs).Parse(templateStr)
-
-	if err != nil {
-		return err
-	}
-
-	if err := tmpl.Execute(f, obj); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*openApiPlugin, error) {
