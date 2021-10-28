@@ -28,7 +28,7 @@ type Result struct {
 	Body       []byte
 }
 
-type openApiPlugin struct {
+type OpenApiPlugin struct {
 	actions     []plugin.Action
 	description         plugin.Description
 	requestUrl          string
@@ -62,22 +62,22 @@ type PluginChecks struct {
 	GetTokenFromCrendentials GetTokenFromCredentials
 }
 
-func (p *openApiPlugin) Describe() plugin.Description {
+func (p *OpenApiPlugin) Describe() plugin.Description {
 	log.Debug("Handling Describe request!")
 	return p.description
 }
 
-func (p *openApiPlugin) GetActions() []plugin.Action {
+func (p *OpenApiPlugin) GetActions() []plugin.Action {
 	log.Debug("Handling GetActions request!")
 	return p.actions
 }
 
 func (p *openApiPlugin) TestCredentials(conn map[string]*connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
 	return p.callbacks.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
-
 }
 
 func (p *openApiPlugin) actionExist(actionName string) bool {
+
 	for _, val := range p.actions {
 		if val.Name == actionName {
 			return true
@@ -93,6 +93,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	// We don't want to parse the URL with request params
 	delete(connection, consts.RequestUrlKey)
 	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
+
 	if err != nil {
 		log.Warn("No credentials provided")
 	}
@@ -107,7 +108,8 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.callbacks.GetTokenFromCrendentials, request.Timeout)
-	res.Result = result.Body
+	
+  res.Result = result.Body
 
 	if err != nil {
 		res.ErrorCode = consts.Error
@@ -145,6 +147,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	// We don't want to parse the URL with request params
 	delete(connection, consts.RequestUrlKey)
 	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
+
 	if err != nil {
 		log.Warn("No credentials provided")
 	}
@@ -153,6 +156,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 }
 
 func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, manipulateCredentials GetTokenFromCredentials, timeout int32) (Result, error) {
+
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}
@@ -160,6 +164,7 @@ func executeRequestWithCredentials(connection map[string]interface{}, httpReques
 	result := Result{}
 	log.Info(httpRequest.URL)
 	if err := setAuthenticationHeaders(connection, httpRequest, manipulateCredentials, headerValuePrefixes, headerAlias); err != nil {
+
 		log.Error(err)
 		return result, err
 	}
@@ -192,6 +197,7 @@ func executeRequestWithCredentials(connection map[string]interface{}, httpReques
 }
 
 func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+
 	actionName := executeActionRequest.Name
 
 	if !p.actionExist(actionName) {
@@ -215,6 +221,7 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 
 	// add to request parameters
 	paramsFromConnection := getPathParamsFromConnection(connection, p.pathParams)
+
 
 	for k, v := range paramsFromConnection {
 		requestParameters[k] = v
@@ -262,9 +269,7 @@ func getPathParamsFromConnection(connection map[string]interface{}, params PathP
 			if StringInSlice(header, params) {
 				paramsFromConnection[header] = headerValueString
 			}
-
 		}
-
 	}
 	return paramsFromConnection
 }
@@ -537,6 +542,7 @@ func convertParamType(paramType *string) {
 }
 
 func parseActionParam(maskData mask.Mask, actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool, paramDescription string) *plugin.ActionParameter {
+
 	var (
 		isMulti    bool
 		paramIndex int64

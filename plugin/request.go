@@ -242,7 +242,7 @@ func cleanRedundantHeaders(requestHeaders *http.Header) {
 
 func getRequestUrlFromConnection(requestUrl string, connection map[string]interface{}) string {
 	if explicitRequestUrl, ok := connection[consts.RequestUrlKey].(string); ok {
-		return explicitRequestUrl
+		requestUrl = explicitRequestUrl
 	}
 	return requestUrl
 }
