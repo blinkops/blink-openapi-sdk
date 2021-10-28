@@ -28,7 +28,7 @@ type Result struct {
 	Body       []byte
 }
 
-type OpenApiPlugin struct {
+type openApiPlugin struct {
 	actions     []plugin.Action
 	description         plugin.Description
 	requestUrl          string
@@ -62,12 +62,12 @@ type PluginChecks struct {
 	GetTokenFromCrendentials GetTokenFromCredentials
 }
 
-func (p *OpenApiPlugin) Describe() plugin.Description {
+func (p *openApiPlugin) Describe() plugin.Description {
 	log.Debug("Handling Describe request!")
 	return p.description
 }
 
-func (p *OpenApiPlugin) GetActions() []plugin.Action {
+func (p *openApiPlugin) GetActions() []plugin.Action {
 	log.Debug("Handling GetActions request!")
 	return p.actions
 }
