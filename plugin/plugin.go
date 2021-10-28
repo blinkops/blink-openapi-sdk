@@ -283,7 +283,7 @@ func StringInSlice(a string, list []string) bool {
 	return false
 }
 
-func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks Callbacks) (*openApiPlugin, error) {
+func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, callbacks Callbacks) (*openApiPlugin, error) {
 
 	mask, err := mask.ParseMask(meta.MaskFile)
 
@@ -308,8 +308,8 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		},
 		headerValuePrefixes: meta.HeaderValuePrefixes,
 		headerAlias:         meta.HeaderAlias,
-		mask:       mask,
-		callbacks:  checks,
+		mask:                mask,
+		callbacks:           callbacks,
 	}, nil
 }
 
