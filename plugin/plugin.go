@@ -35,8 +35,8 @@ type openApiPlugin struct {
 	headerValuePrefixes HeaderValuePrefixes
 	headerAlias         HeaderAlias
 	pathParams          PathParams
-	mask             mask.Mask
-	helpingFunctions PluginChecks
+	mask      mask.Mask
+	callbacks PluginChecks
 }
 
 type PluginMetadata struct {
@@ -48,6 +48,12 @@ type PluginMetadata struct {
 	HeaderValuePrefixes HeaderValuePrefixes
 	HeaderAlias         HeaderAlias
 	PathParams          PathParams
+}
+
+type parseOpenApiResponse struct {
+	requestUrl string
+	description string
+	actions []plugin.Action
 }
 
 type PluginChecks struct {
@@ -67,7 +73,7 @@ func (p *openApiPlugin) GetActions() []plugin.Action {
 }
 
 func (p *openApiPlugin) TestCredentials(conn map[string]*connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
-	return p.helpingFunctions.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
+	return p.callbacks.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
 
 }
 
@@ -83,7 +89,9 @@ func (p *openApiPlugin) actionExist(actionName string) bool {
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
 	connection, err := getCredentials(actionContext, p.Describe().Provider)
 	p.requestUrl = getRequestUrlFromConnection(p.requestUrl, connection)
-
+	// Remove request url and leave only other authentication headers
+	// We don't want to parse the URL with request params
+	delete(connection, consts.RequestUrlKey)
 	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
 	if err != nil {
 		log.Warn("No credentials provided")
@@ -98,7 +106,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.helpingFunctions.GetTokenFromCrendentials, request.Timeout)
+	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.callbacks.GetTokenFromCrendentials, request.Timeout)
 	res.Result = result.Body
 
 	if err != nil {
@@ -108,9 +116,9 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	// if no validate response function was passed no response check will occur.
-	if p.helpingFunctions.ValidateResponse != nil && len(result.Body) > 0 {
+	if p.callbacks.ValidateResponse != nil && len(result.Body) > 0 {
 
-		if valid, msg := p.helpingFunctions.ValidateResponse(result); !valid {
+		if valid, msg := p.callbacks.ValidateResponse(result); !valid {
 			res.ErrorCode = consts.Error
 			res.Result = msg
 		}
@@ -133,7 +141,9 @@ func fixRequestURL(r *http.Request) error {
 // ExecuteRequest is used by the 'validate' method in most openapi plugins.
 func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, manipulateCredentials GetTokenFromCredentials) (Result, error) {
 	connection, err := getCredentials(actionContext, providerName)
-
+	// Remove request url and leave only other authentication headers
+	// We don't want to parse the URL with request params
+	delete(connection, consts.RequestUrlKey)
 	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
 	if err != nil {
 		log.Warn("No credentials provided")
@@ -282,39 +292,39 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		return nil, errors.Errorf("Cannot parse mask file: %s", meta.MaskFile)
 	}
 
-	description, requestUrl, actions, err := parseOpenApiFile(mask, meta.OpenApiFile)
+	parseOpenApiResponse, err := parseOpenApiFile(mask, meta.OpenApiFile)
 	if err != nil {
 		return nil, err
 	}
 
 	return &openApiPlugin{
-		actions:             actions,
-		headerValuePrefixes: meta.HeaderValuePrefixes,
-		headerAlias:         meta.HeaderAlias,
+		actions:             parseOpenApiResponse.actions,
+		requestUrl: parseOpenApiResponse.requestUrl,
 		description: plugin.Description{
 			Name:        meta.Name,
-			Description: description,
+			Description: parseOpenApiResponse.description,
 			Tags:        meta.Tags,
 			Connections: connectionTypes,
 			Provider:    meta.Provider,
 		},
-		mask:             mask,
-		requestUrl:       requestUrl,
-		helpingFunctions: checks,
+		headerValuePrefixes: meta.HeaderValuePrefixes,
+		headerAlias:         meta.HeaderAlias,
+		mask:       mask,
+		callbacks:  checks,
 	}, nil
 }
 
-func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (string, string, []plugin.Action, error) {
+func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parseOpenApiResponse, error) {
 	var actions []plugin.Action
 
 	openApi, err := loadOpenApi(OpenApiFile)
 
 	if err != nil {
-		return "", "", nil, err
+		return parseOpenApiResponse{}, err
 	}
 
 	if len(openApi.Servers) == 0 {
-		return "", "", nil, errors.New("no server URL provided in OpenApi file")
+		return parseOpenApiResponse{}, err
 	}
 
 	// Set default openApi server
@@ -328,7 +338,7 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (string, string, [
 	err = handlers.DefineOperations(openApi)
 
 	if err != nil {
-		return "", "", nil, err
+		return parseOpenApiResponse{}, err
 	}
 
 	for _, operation := range handlers.OperationDefinitions {
@@ -381,8 +391,12 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (string, string, [
 	sort.Slice(actions, func(i, j int) bool {
 		return actions[i].Name < actions[j].Name
 	})
+	return parseOpenApiResponse{
+		description: openApi.Info.Description,
+		requestUrl: requestUrl,
+		actions: actions,
+	}, nil
 
-	return openApi.Info.Description, requestUrl, actions, nil
 }
 
 func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
