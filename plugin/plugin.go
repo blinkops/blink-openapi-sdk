@@ -214,11 +214,7 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 	requestParameters := p.mask.ReplaceActionParametersAliases(actionName, rawParameters)
 
 	// add to request parameters
-	paramsFromConnection, err := getPathParamsFromConnection(connection, p.pathParams)
-
-	if err != nil {
-		return nil, err
-	}
+	paramsFromConnection := getPathParamsFromConnection(connection, p.pathParams)
 
 	for k, v := range paramsFromConnection {
 		requestParameters[k] = v
@@ -259,9 +255,8 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 	return request, nil
 }
 
-func getPathParamsFromConnection(connection map[string]interface{}, params PathParams) (map[string]string, error) {
+func getPathParamsFromConnection(connection map[string]interface{}, params PathParams) (map[string]string) {
 	paramsFromConnection := map[string]string{}
-
 	for header, headerValue := range connection {
 		if headerValueString, ok := headerValue.(string); ok {
 			if StringInSlice(header, params) {
@@ -271,8 +266,7 @@ func getPathParamsFromConnection(connection map[string]interface{}, params PathP
 		}
 
 	}
-
-	return paramsFromConnection, nil
+	return paramsFromConnection
 }
 
 func StringInSlice(a string, list []string) bool {
