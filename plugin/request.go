@@ -252,12 +252,5 @@ func getCredentials(actionContext *plugin.ActionContext, provider string) (map[s
 	if err != nil {
 		return nil, err
 	}
-
-	defer func() {
-		// Remove request url and leave only other authentication headers
-		// We don't want to parse the URL with request params
-		delete(connection, consts.RequestUrlKey)
-	}()
-
 	return connection, nil
 }
