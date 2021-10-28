@@ -90,10 +90,7 @@ func GenerateMaskFile(c *cli.Context) error {
 			return a[len(a)-1]
 		},
 		"badPrefix": func(str string) bool {
-			if strings.HasPrefix(str, "@") {
-				return true
-			}
-			return false
+			return strings.HasPrefix(str, "@")
 		},
 		"index": func(str string) int {
 			if _, ok := indexMap[str]; ok {
