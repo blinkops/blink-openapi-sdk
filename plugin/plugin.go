@@ -36,7 +36,7 @@ type openApiPlugin struct {
 	headerAlias         HeaderAlias
 	pathParams          PathParams
 	mask      mask.Mask
-	callbacks PluginChecks
+	callbacks Callbacks
 }
 
 type PluginMetadata struct {
@@ -56,7 +56,7 @@ type parseOpenApiResponse struct {
 	actions []plugin.Action
 }
 
-type PluginChecks struct {
+type Callbacks struct {
 	TestCredentialsFunc func(*plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
 	ValidateResponse    func(Result) (bool, []byte)
 	GetTokenFromCrendentials GetTokenFromCredentials
@@ -283,7 +283,7 @@ func StringInSlice(a string, list []string) bool {
 	return false
 }
 
-func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*openApiPlugin, error) {
+func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks Callbacks) (*openApiPlugin, error) {
 
 	mask, err := mask.ParseMask(meta.MaskFile)
 

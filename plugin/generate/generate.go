@@ -56,7 +56,7 @@ func GenerateMaskFile(c *cli.Context) error {
 		Name:        "",
 		MaskFile:    "",
 		OpenApiFile: c.String("file"),
-	}, plugin.PluginChecks{})
+	}, plugin.Callbacks{})
 
 	if err != nil {
 		return err
@@ -116,7 +116,7 @@ func GenerateMarkdown(c *cli.Context) error {
 		Name:        c.String("name"),
 		MaskFile:    c.String("mask"),
 		OpenApiFile: c.String("file"),
-	}, plugin.PluginChecks{})
+	}, plugin.Callbacks{})
 
 	if err != nil {
 		return err
