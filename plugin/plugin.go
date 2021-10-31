@@ -409,7 +409,15 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 	} else {
 		// the file is gzipped
 		if os.Getenv(consts.ENVStatusKey) != "" {
-			return zip.LoadFromGzipFile(loader, filePath+consts.GzipFile)
+
+			parsed, err := zip.LoadFromGzipFile(loader, filePath+consts.GzipFile)
+
+			if err != nil{
+				fmt.Printf("%#v", err)
+				return nil, err
+			}
+
+			return parsed, nil
 		}
 		// normal yaml
 		return loader.LoadFromFile(filePath)
