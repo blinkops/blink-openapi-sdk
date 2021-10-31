@@ -29,18 +29,18 @@ func (suite *PluginTestSuite) TestSetAuthenticationHeaders() {
 	ctx := plugin_sdk.NewActionContext(map[string]interface{}{}, cns)
 
 	type args struct {
-		httpreq      *http.Request
+		httpreq *http.Request
 	}
 
-	u,_ := url.Parse(testServer.URL)
+	u, _ := url.Parse(testServer.URL)
 
 	tests := []struct {
-		name    string
-		args    args
+		name string
+		args args
 	}{
 		{
-			name:    "happy path",
-			args:    args{httpreq: &http.Request{Method: "POST",
+			name: "happy path",
+			args: args{httpreq: &http.Request{Method: "POST",
 				URL: &url.URL{Scheme: "http",
 					Host: u.Host, Path: u.Path},
 				Header: map[string][]string{}}},
@@ -50,7 +50,7 @@ func (suite *PluginTestSuite) TestSetAuthenticationHeaders() {
 		suite.T().Run("test parseActionRequest(): "+tt.name, func(t *testing.T) {
 			connection, err := ctx.GetCredentials("test")
 			require.Nil(t, err)
-			err = SetAuthenticationHeaders(connection, tt.args.httpreq, nil, nil)
+			err = setAuthenticationHeaders(connection, tt.args.httpreq, nil, nil, nil)
 			require.Nil(t, err)
 			assert.Contains(t, tt.args.httpreq.Header, "Authorization")
 			splitSlice := strings.Split(tt.args.httpreq.Header["Authorization"][0], " ")

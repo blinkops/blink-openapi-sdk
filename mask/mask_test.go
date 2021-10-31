@@ -3,82 +3,31 @@ package mask
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"gopkg.in/yaml.v3"
 	"testing"
-)
-
-var (
-	testData = `actions:
-  AddTeamMember:
-    parameters:
-      teamId:
-        alias: "Team ID"
-      userId:
-        alias: "User ID"
-
-  InviteOrgMember:
-    parameters:
-      name:
-        alias: "Name"
-      loginOrEmail:
-        alias: "Username/Email"
-      role:
-        alias: "Role"
-      sendEmail:
-        alias: "Send Email"
-
-  RemoveOrgMember:
-    parameters:
-      userId:
-        alias: "User ID"
-
-  CreateFolder:
-    parameters:
-      uid:
-        alias: "Folder ID (optional)"
-      title:
-        alias: "Folder Name"
-
-  CreateDashboard:
-    parameters:
-      dashboard.uid:
-        alias: "Dashboard Unique ID"
-      dashboard.title:
-        alias: "Dashboard Title"
-      dashboard.tags:
-        alias: "Dashboard Tags"
-      dashboard.timezone:
-        alias: "Dashboard Timezone"
-      dashboard.schemaVersion:
-        alias: "Dashboard Schema Version"
-      dashboard.version:
-        alias: "Dashboard Version"
-      dashboard.refresh:
-        alias: "Dashboard Refresh Interval"
-      folderUid:
-        alias: "Folder Unique ID"
-      message:
-        alias: "Commit Message"`
 )
 
 type MaskTestSuite struct {
 	suite.Suite
+	Mask Mask
 }
 
 // Need to populate the global variables.
 func (suite *MaskTestSuite) SetupSuite() {
-	if err := yaml.Unmarshal([]byte(testData), MaskData); err != nil {
-		panic("unable to unmarshal test data")
+	mask, err := ParseMask("mask_test.yaml")
+	if err != nil {
+		panic("unable to parse mask from test data")
 	}
+	suite.Mask = mask
 }
 
 func (suite *MaskTestSuite) TestBuildActionAliasMap() {
-	buildActionAliasMap()
-	assert.Equal(suite.T(), len(reverseActionAliasMap), 0)
+	suite.Mask.buildActionAliasMap()
+	assert.Equal(suite.T(), len(suite.Mask.ReverseActionAliasMap), 0)
 }
 
 func (suite *MaskTestSuite) TestBuildParamAliasMap() {
-	buildParamAliasMap()
+	suite.Mask.buildParamAliasMap()
+	reverseParameterAliasMap := suite.Mask.ReverseParameterAliasMap
 	assert.Equal(suite.T(), len(reverseParameterAliasMap), 5)
 	assert.Contains(suite.T(), reverseParameterAliasMap, "AddTeamMember")
 	assert.Contains(suite.T(), reverseParameterAliasMap["AddTeamMember"], "Team ID")
@@ -87,19 +36,19 @@ func (suite *MaskTestSuite) TestBuildParamAliasMap() {
 
 func (suite *MaskTestSuite) TestReplaceActionAlias() {
 	input := "InviteOrgMember"
-	result := ReplaceActionAlias(input)
+	result := suite.Mask.ReplaceActionAlias(input)
 	assert.Equal(suite.T(), result, input)
 }
 
 func (suite *MaskTestSuite) TestGetAction() {
-	action := MaskData.GetAction("CreateFolder")
+	action := suite.Mask.GetAction("CreateFolder")
 	assert.Equal(suite.T(), action.Alias, "")
 	assert.Equal(suite.T(), len(action.Parameters), 2)
 	assert.Equal(suite.T(), action.Parameters["uid"].Alias, "Folder ID (optional)")
 }
 
 func (suite *MaskTestSuite) TestGetParameter() {
-	actionParameter := MaskData.GetParameter("CreateFolder", "title")
+	actionParameter := suite.Mask.GetParameter("CreateFolder", "title")
 	assert.Equal(suite.T(), actionParameter.Alias, "Folder Name")
 }
 

@@ -177,7 +177,23 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
-func SetAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
+func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, getTokenFromCrendentials GetTokenFromCredentials, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
+
+	// If a GetTokenFromCredentials was passed AND there's no "Token" header, generate a token with the function.
+	// When there's a "Token" field in the security headers, it will be first priority
+	if _, ok := securityHeaders["Token"]; getTokenFromCrendentials != nil && !ok {
+		generatedToken, err := getTokenFromCrendentials(securityHeaders)
+		if err != nil {
+			return err
+		}
+		if generatedToken != "" {
+			for headerKey, headerPrefix := range prefixes {
+				request.Header.Set(headerKey, headerPrefix+generatedToken)
+				return nil
+			}
+		}
+	}
+
 	headers := make(map[string]string)
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
@@ -190,7 +206,7 @@ func SetAuthenticationHeaders(securityHeaders map[string]interface{}, request *h
 
 			// we want to help the user by adding prefixes he might have missed
 			// for example:   Bearer <TOKEN>
-			if val, ok := headerValuePrefixes[header]; ok {
+			if val, ok := prefixes[header]; ok {
 				if !strings.HasPrefix(headerValueString, val) { // check what prefix the user doesn't have
 					// add the prefix
 					headerValueString = val + headerValueString
@@ -224,30 +240,17 @@ func cleanRedundantHeaders(requestHeaders *http.Header) {
 	requestHeaders.Del(consts.BasicAuthPassword)
 }
 
-func getRequestUrlFromConnection(connection map[string]interface{}) {
-	if len(connection) == 0 {
-		return
-	}
-
+func getRequestUrlFromConnection(requestUrl string, connection map[string]interface{}) string {
 	if explicitRequestUrl, ok := connection[consts.RequestUrlKey].(string); ok {
 		requestUrl = explicitRequestUrl
 	}
+	return requestUrl
 }
 
-func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
+func getCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
 	connection, err := actionContext.GetCredentials(provider)
-
 	if err != nil {
 		return nil, err
 	}
-
-	getRequestUrlFromConnection(connection)
-
-	defer func() {
-		// Remove request url and leave only other authentication headers
-		// We don't want to parse the URL with request params
-		delete(connection, consts.RequestUrlKey)
-	}()
-
 	return connection, nil
 }

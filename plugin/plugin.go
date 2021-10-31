@@ -10,39 +10,33 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
-	"html/template"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 	"time"
 )
 
-var (
-	requestUrl string
-)
-
 type HeaderValuePrefixes map[string]string
 type HeaderAlias map[string]string
 type PathParams []string
-
 type JSONMap interface{}
-
+type GetTokenFromCredentials func(map[string]interface{}) (string, error)
 type Result struct {
 	StatusCode int
 	Body       []byte
 }
 
-type OpenApiPlugin struct {
-	actions     []plugin.Action
-	description plugin.Description
-
-	HeaderValuePrefixes HeaderValuePrefixes
-	HeaderAlias         HeaderAlias
-	PathParams          PathParams
+type openApiPlugin struct {
+	actions             []plugin.Action
+	description         plugin.Description
+	requestUrl          string
+	headerValuePrefixes HeaderValuePrefixes
+	headerAlias         HeaderAlias
+	pathParams          PathParams
+	mask                mask.Mask
+	callbacks           Callbacks
 }
 
 type PluginMetadata struct {
@@ -56,30 +50,34 @@ type PluginMetadata struct {
 	PathParams          PathParams
 }
 
-var helpingFunctions PluginChecks
-
-type PluginChecks struct {
-	TestCredentialsFunc func(ctx *plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
-	ValidateResponse    func(Result) (bool, []byte)
+type parseOpenApiResponse struct {
+	requestUrl  string
+	description string
+	actions     []plugin.Action
 }
 
-func (p *OpenApiPlugin) Describe() plugin.Description {
+type Callbacks struct {
+	TestCredentialsFunc      func(*plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
+	ValidateResponse         func(Result) (bool, []byte)
+	GetTokenFromCrendentials GetTokenFromCredentials
+}
+
+func (p *openApiPlugin) Describe() plugin.Description {
 	log.Debug("Handling Describe request!")
 	return p.description
 }
 
-func (p *OpenApiPlugin) GetActions() []plugin.Action {
+func (p *openApiPlugin) GetActions() []plugin.Action {
 	log.Debug("Handling GetActions request!")
 	return p.actions
 }
 
-func (p *OpenApiPlugin) TestCredentials(conn map[string]*connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
-
-	return helpingFunctions.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
-
+func (p *openApiPlugin) TestCredentials(conn map[string]*connections.ConnectionInstance) (*plugin.CredentialsValidationResponse, error) {
+	return p.callbacks.TestCredentialsFunc(plugin.NewActionContext(nil, conn))
 }
 
-func (p *OpenApiPlugin) ActionExist(actionName string) bool {
+func (p *openApiPlugin) actionExist(actionName string) bool {
+
 	for _, val := range p.actions {
 		if val.Name == actionName {
 			return true
@@ -88,8 +86,13 @@ func (p *OpenApiPlugin) ActionExist(actionName string) bool {
 	return false
 }
 
-func (p *OpenApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
-	connection, err := GetCredentials(actionContext, p.Describe().Provider)
+func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
+	connection, err := getCredentials(actionContext, p.Describe().Provider)
+	p.requestUrl = getRequestUrlFromConnection(p.requestUrl, connection)
+	// Remove request url and leave only other authentication headers
+	// We don't want to parse the URL with request params
+	delete(connection, consts.RequestUrlKey)
+	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
 
 	if err != nil {
 		log.Warn("No credentials provided")
@@ -104,7 +107,8 @@ func (p *OpenApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	result, err := ExecuteRequestWithCredentials(connection, openApiRequest, p.HeaderValuePrefixes, p.HeaderAlias, request.Timeout)
+	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.callbacks.GetTokenFromCrendentials, request.Timeout)
+
 	res.Result = result.Body
 
 	if err != nil {
@@ -114,9 +118,9 @@ func (p *OpenApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	// if no validate response function was passed no response check will occur.
-	if helpingFunctions.ValidateResponse != nil && len(result.Body) > 0 {
+	if p.callbacks.ValidateResponse != nil && len(result.Body) > 0 {
 
-		if valid, msg := helpingFunctions.ValidateResponse(result); !valid {
+		if valid, msg := p.callbacks.ValidateResponse(result); !valid {
 			res.ErrorCode = consts.Error
 			res.Result = msg
 		}
@@ -125,7 +129,7 @@ func (p *OpenApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	return res, nil
 }
 
-func FixRequestURL(r *http.Request) error {
+func fixRequestURL(r *http.Request) error {
 
 	if r.URL.Scheme == "" {
 		r.URL.Scheme = "https"
@@ -136,29 +140,36 @@ func FixRequestURL(r *http.Request) error {
 	return err
 }
 
-func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32) (Result, error) {
-	connection, err := GetCredentials(actionContext, providerName)
+// ExecuteRequest is used by the 'validate' method in most openapi plugins.
+func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, manipulateCredentials GetTokenFromCredentials) (Result, error) {
+	connection, err := getCredentials(actionContext, providerName)
+	// Remove request url and leave only other authentication headers
+	// We don't want to parse the URL with request params
+	delete(connection, consts.RequestUrlKey)
+	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
 
 	if err != nil {
 		log.Warn("No credentials provided")
 	}
 
-	return ExecuteRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, timeout)
+	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, manipulateCredentials, timeout)
 }
 
-func ExecuteRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32) (Result, error) {
+func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, manipulateCredentials GetTokenFromCredentials, timeout int32) (Result, error) {
+
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
 	result := Result{}
 	log.Info(httpRequest.URL)
-	if err := SetAuthenticationHeaders(connection, httpRequest, headerValuePrefixes, headerAlias); err != nil {
+	if err := setAuthenticationHeaders(connection, httpRequest, manipulateCredentials, headerValuePrefixes, headerAlias); err != nil {
+
 		log.Error(err)
 		return result, err
 	}
 
-	if err := FixRequestURL(httpRequest); err != nil {
+	if err := fixRequestURL(httpRequest); err != nil {
 		log.Error(err)
 		return result, err
 	}
@@ -185,16 +196,17 @@ func ExecuteRequestWithCredentials(connection map[string]interface{}, httpReques
 	return result, err
 }
 
-func (p *OpenApiPlugin) parseActionRequest(connection map[string]interface{}, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+
 	actionName := executeActionRequest.Name
 
-	if !p.ActionExist(actionName) {
+	if !p.actionExist(actionName) {
 		err := errors.New("No such method")
 		log.Error(err)
 		return nil, err
 	}
 
-	actionName = mask.ReplaceActionAlias(actionName)
+	actionName = p.mask.ReplaceActionAlias(actionName)
 	operation := handlers.OperationDefinitions[actionName]
 
 	// get the parameters from the request.
@@ -205,17 +217,17 @@ func (p *OpenApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 	}
 
 	// replace the raw parameters with their alias.
-	requestParameters := mask.ReplaceActionParametersAliases(actionName, rawParameters)
+	requestParameters := p.mask.ReplaceActionParametersAliases(actionName, rawParameters)
 
 	// add to request parameters
-	paramsFromConnection := GetPathParamsFromConnection(connection, p.PathParams)
+	paramsFromConnection := getPathParamsFromConnection(connection, p.pathParams)
 
 	for k, v := range paramsFromConnection {
 		requestParameters[k] = v
 	}
 
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
-	operationUrl, err := url.Parse(requestUrl + requestPath)
+	operationUrl, err := url.Parse(p.requestUrl + requestPath)
 
 	if err != nil {
 		return nil, err
@@ -249,21 +261,19 @@ func (p *OpenApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 	return request, nil
 }
 
-func GetPathParamsFromConnection(connection map[string]interface{}, params PathParams) map[string]string {
+func getPathParamsFromConnection(connection map[string]interface{}, params PathParams) map[string]string {
 	paramsFromConnection := map[string]string{}
-
 	for header, headerValue := range connection {
 		if headerValueString, ok := headerValue.(string); ok {
-			if stringInSlice(header, params) {
+			if StringInSlice(header, params) {
 				paramsFromConnection[header] = headerValueString
 			}
 		}
 	}
-
 	return paramsFromConnection
 }
 
-func stringInSlice(a string, list []string) bool {
+func StringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if strings.EqualFold(b, a) {
 			return true
@@ -272,145 +282,52 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-func GenerateMaskFile(c *cli.Context) error {
-	apiPlugin, err := NewOpenApiPlugin(nil, PluginMetadata{
-		Name:        "",
-		MaskFile:    "",
-		OpenApiFile: c.String("file"),
-	}, PluginChecks{})
+func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, callbacks Callbacks) (*openApiPlugin, error) {
 
-	if err != nil {
-		return err
-	}
-
-	indexMap := map[string]int{}
-
-	genAlias := func(str string) string {
-		uppercaseWords := []string{"url", "id", "ip", "ssl"}
-
-		// replace _ with ' '
-		str = strings.ReplaceAll(str, "_", " ")
-
-		// iter over words in the string
-		for _, word := range strings.Split(str, " ") {
-
-			// check if the word is in out list.
-			if stringInSlice(word, uppercaseWords) {
-				str = strings.ReplaceAll(str, word, strings.ToUpper(word))
-			}
-		}
-
-		return strings.Join(strings.Fields(strings.Title(str)), " ")
-	}
-
-	err = RunTemplate(consts.MaskFile, consts.YAMLTemplate, apiPlugin, template.FuncMap{
-		"actName": genAlias,
-		"paramName": func(str string) string {
-			a := strings.Split(genAlias(str), ".")
-			return a[len(a)-1]
-		},
-		"index": func(str string) int {
-			if _, ok := indexMap[str]; ok {
-				indexMap[str] += 1
-				return indexMap[str]
-			}
-			indexMap[str] = 1
-			return 1
-		},
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-
-}
-
-func GenerateMarkdown(c *cli.Context) error {
-
-	apiPlugin, err := NewOpenApiPlugin(nil, PluginMetadata{
-		Name:        c.String("name"),
-		MaskFile:    c.String("mask"),
-		OpenApiFile: c.String("file"),
-	}, PluginChecks{})
-
-	if err != nil {
-		return err
-	}
-
-	err = RunTemplate(consts.README, consts.READMETemplate, apiPlugin, nil)
-	if err != nil {
-		return err
-	}
-
-	return nil
-
-}
-
-func RunTemplate(fileName string, templateStr string, obj interface{}, funcs template.FuncMap) error {
-	f, err := os.Create(fileName)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	tmpl, err := template.New("").Funcs(funcs).Parse(templateStr)
-
-	if err != nil {
-		return err
-	}
-
-	if err := tmpl.Execute(f, obj); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, checks PluginChecks) (*OpenApiPlugin, error) {
-
-	helpingFunctions = checks
-
-	err := mask.ParseMask(meta.MaskFile)
+	mask, err := mask.ParseMask(meta.MaskFile)
 
 	if err != nil {
 		return nil, errors.Errorf("Cannot parse mask file: %s", meta.MaskFile)
 	}
 
-	description, actions, err := extractActions(meta.OpenApiFile)
+	parseOpenApiResponse, err := parseOpenApiFile(mask, meta.OpenApiFile)
 	if err != nil {
 		return nil, err
 	}
 
-	return &OpenApiPlugin{
-		actions:             actions,
-		HeaderValuePrefixes: meta.HeaderValuePrefixes,
-		HeaderAlias:         meta.HeaderAlias,
+	return &openApiPlugin{
+		actions:    parseOpenApiResponse.actions,
+		requestUrl: parseOpenApiResponse.requestUrl,
 		description: plugin.Description{
 			Name:        meta.Name,
-			Description: description,
+			Description: parseOpenApiResponse.description,
 			Tags:        meta.Tags,
 			Connections: connectionTypes,
 			Provider:    meta.Provider,
 		},
+		headerValuePrefixes: meta.HeaderValuePrefixes,
+		headerAlias:         meta.HeaderAlias,
+		mask:                mask,
+		callbacks:           callbacks,
 	}, nil
 }
 
-func extractActions(OpenApiFile string) (string, []plugin.Action, error) {
+func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parseOpenApiResponse, error) {
 	var actions []plugin.Action
 
 	openApi, err := loadOpenApi(OpenApiFile)
 
 	if err != nil {
-		return "", nil, err
+		return parseOpenApiResponse{}, err
 	}
 
 	if len(openApi.Servers) == 0 {
-		return "", nil, errors.New("no server URL provided in OpenApi file")
+		return parseOpenApiResponse{}, err
 	}
 
 	// Set default openApi server
 	openApiServer := openApi.Servers[0]
-	requestUrl = openApiServer.URL
+	requestUrl := openApiServer.URL
 
 	for urlVariableName, urlVariable := range openApiServer.Variables {
 		requestUrl = strings.ReplaceAll(requestUrl, consts.ParamPrefix+urlVariableName+consts.ParamSuffix, urlVariable.Default)
@@ -419,15 +336,15 @@ func extractActions(OpenApiFile string) (string, []plugin.Action, error) {
 	err = handlers.DefineOperations(openApi)
 
 	if err != nil {
-		return "", nil, err
+		return parseOpenApiResponse{}, err
 	}
 
 	for _, operation := range handlers.OperationDefinitions {
 		actionName := operation.OperationId
 
 		// Skip masked actions
-		if mask.MaskData.Actions != nil {
-			if maskedAction := mask.MaskData.GetAction(actionName); maskedAction == nil {
+		if maskData.Actions != nil {
+			if maskedAction := maskData.GetAction(actionName); maskedAction == nil {
 				continue
 			} else {
 				if maskedAction.Alias != "" {
@@ -452,14 +369,14 @@ func extractActions(OpenApiFile string) (string, []plugin.Action, error) {
 				paramDescription = pathParam.Spec.Description
 			}
 
-			if actionParam := parseActionParam(action.Name, &paramName, pathParam.Spec.Schema, pathParam.Required, paramDescription); actionParam != nil {
+			if actionParam := parseActionParam(maskData, action.Name, &paramName, pathParam.Spec.Schema, pathParam.Required, paramDescription); actionParam != nil {
 				action.Parameters[paramName] = *actionParam
 			}
 		}
 
 		for _, paramBody := range operation.Bodies {
 			if paramBody.DefaultBody {
-				handleBodyParams(paramBody.Schema.OApiSchema, "", &action)
+				handleBodyParams(maskData, paramBody.Schema.OApiSchema, "", &action)
 				break
 			}
 		}
@@ -472,8 +389,12 @@ func extractActions(OpenApiFile string) (string, []plugin.Action, error) {
 	sort.Slice(actions, func(i, j int) bool {
 		return actions[i].Name < actions[j].Name
 	})
+	return parseOpenApiResponse{
+		description: openApi.Info.Description,
+		requestUrl:  requestUrl,
+		actions:     actions,
+	}, nil
 
-	return openApi.Info.Description, actions, nil
 }
 
 func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
@@ -488,8 +409,8 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 	}
 }
 
-func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin.Action) {
-	handleBodyParamOfType(schema, parentPath, action)
+func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath string, action *plugin.Action) {
+	handleBodyParamOfType(maskData, schema, parentPath, action)
 
 	for propertyName, bodyProperty := range schema.Properties {
 		fullParamPath := propertyName
@@ -505,9 +426,9 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 
 		// Keep recursion until leaf node is found
 		if bodyProperty.Value.Properties != nil {
-			handleBodyParams(bodyProperty.Value, fullParamPath, action)
+			handleBodyParams(maskData, bodyProperty.Value, fullParamPath, action)
 		} else {
-			handleBodyParamOfType(bodyProperty.Value, fullParamPath, action)
+			handleBodyParamOfType(maskData, bodyProperty.Value, fullParamPath, action)
 			isParamRequired := false
 
 			for _, requiredParam := range schema.Required {
@@ -517,14 +438,14 @@ func handleBodyParams(schema *openapi3.Schema, parentPath string, action *plugin
 				}
 			}
 
-			if actionParam := parseActionParam(action.Name, &fullParamPath, bodyProperty, isParamRequired, bodyProperty.Value.Description); actionParam != nil {
+			if actionParam := parseActionParam(maskData, action.Name, &fullParamPath, bodyProperty, isParamRequired, bodyProperty.Value.Description); actionParam != nil {
 				action.Parameters[fullParamPath] = *actionParam
 			}
 		}
 	}
 }
 
-func handleBodyParamOfType(schema *openapi3.Schema, parentPath string, action *plugin.Action) {
+func handleBodyParamOfType(maskData mask.Mask, schema *openapi3.Schema, parentPath string, action *plugin.Action) {
 	if schema.AllOf != nil || schema.AnyOf != nil || schema.OneOf != nil {
 
 		allSchemas := []openapi3.SchemaRefs{schema.AllOf, schema.AnyOf, schema.OneOf}
@@ -532,7 +453,7 @@ func handleBodyParamOfType(schema *openapi3.Schema, parentPath string, action *p
 		// find properties nested in Allof, Anyof, Oneof
 		for _, schemaType := range allSchemas {
 			for _, schemaParams := range schemaType {
-				handleBodyParams(schemaParams.Value, parentPath, action)
+				handleBodyParams(maskData, schemaParams.Value, parentPath, action)
 			}
 		}
 	}
@@ -619,12 +540,13 @@ func convertParamType(paramType *string) {
 	}
 }
 
-func parseActionParam(actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool, paramDescription string) *plugin.ActionParameter {
+func parseActionParam(maskData mask.Mask, actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool, paramDescription string) *plugin.ActionParameter {
+
 	var (
 		isMulti    bool
 		paramIndex int64
 	)
-	
+
 	paramType := paramSchema.Value.Type
 	paramFormat := paramSchema.Value.Format
 
@@ -633,8 +555,8 @@ func parseActionParam(actionName string, paramName *string, paramSchema *openapi
 	paramDefault := getParamDefault(paramSchema.Value.Default, paramType)
 	paramIndex = 999 // parameters will be ordered from lowest to highest in UI. This is the default, meaning - the end of the list.
 
-	if mask.MaskData.Actions != nil {
-		maskedParam := mask.MaskData.GetParameter(actionName, *paramName)
+	if maskData.Actions != nil {
+		maskedParam := maskData.GetParameter(actionName, *paramName)
 		if maskedParam == nil {
 			return nil
 		}

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/blinkops/blink-openapi-sdk/plugin"
+	"github.com/blinkops/blink-openapi-sdk/plugin/generate"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"os"
@@ -20,41 +20,52 @@ func main() {
 						Flags: []cli.Flag{
 							&cli.StringFlag{
 								Name:     "file",
+								Aliases:  []string{"f"},
 								Value:    "",
 								Usage:    "openApi file",
 								Required: true,
 							},
 							&cli.StringFlag{
 								Name:     "name",
+								Aliases:  []string{"n"},
 								Value:    "",
-								Usage:    "pluginName",
+								Usage:    "plugin name",
 								Required: true,
 							},
 							&cli.StringFlag{
-								Name:     "mask",
-								Value:    "mask.yaml",
-								Usage:    "maskFile",
+								Name:        "mask",
+								Aliases:     []string{"m"},
+								Value:       "mask.yaml",
+								Usage:       "mask file name",
 								DefaultText: "mask.yaml",
 							},
 						},
 						Name:    "readme",
-						Aliases: []string{"md", "README"},
-						Usage:   "Generate readme.md for openapi plugins",
-						Action:  plugin.GenerateMarkdown,
+						Aliases: []string{"md", "r"},
+						Usage:   "generate readme.md for openapi plugins",
+						Action:  generate.GenerateMarkdown,
 					},
 					{
 						Flags: []cli.Flag{
 							&cli.StringFlag{
 								Name:     "file",
+								Aliases:  []string{"f"},
 								Value:    "",
-								Usage:    "openApi file",
+								Usage:    "openApi file name",
 								Required: true,
+							},
+							&cli.StringFlag{
+								Name:        "output",
+								Aliases:     []string{"o"},
+								Value:       "mask.yaml",
+								Usage:       "name of the output mask file",
+								DefaultText: "mask.yaml",
 							},
 						},
 						Name:    "mask",
-						Aliases: []string{"mask"},
-						Usage:   "Generate mask.yaml for openapi plugins",
-						Action:  plugin.GenerateMaskFile,
+						Aliases: []string{"m"},
+						Usage:   "generate mask.yaml for openapi plugins",
+						Action:  generate.GenerateMaskFile,
 					},
 				},
 			},

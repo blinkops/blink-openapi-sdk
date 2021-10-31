@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
 	plugin_sdk "github.com/blinkops/blink-sdk/plugin"
 	"github.com/blinkops/blink-sdk/plugin/connections"
@@ -19,7 +20,8 @@ import (
 )
 
 var (
-	myPlugin *OpenApiPlugin
+	myPlugin *openApiPlugin
+
 	schemaByte = []byte(`{
  "description": "Folder details",
  "properties": {
@@ -121,7 +123,9 @@ func (suite *PluginTestSuite) AfterTest(_, _ string) {
 }
 
 func (suite *PluginTestSuite) SetupSuite() {
-	myPlugin = &OpenApiPlugin{
+	myPlugin = &openApiPlugin{
+		requestUrl: "http://127.0.0.1:8888",
+
 		actions: []plugin_sdk.Action{
 			{
 				Name:        "AddTeamMember",
@@ -199,8 +203,8 @@ func (suite *PluginTestSuite) TestActionExists() {
 		},
 	}
 	for _, tt := range tests {
-		suite.T().Run("test ActionExist(): "+tt.name, func(t *testing.T) {
-			result := myPlugin.ActionExist(tt.args.action)
+		suite.T().Run("test actionExist(): "+tt.name, func(t *testing.T) {
+			result := myPlugin.actionExist(tt.args.action)
 			assert.Equal(t, tt.expectedResult, result)
 		})
 	}
@@ -287,7 +291,7 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 			cns := map[string]*connections.ConnectionInstance{}
 			cns["test"] = &tt.args.cns
 			ctx := plugin_sdk.NewActionContext(map[string]interface{}{}, cns)
-			result, err := ExecuteRequest(ctx, tt.args.httpreq, tt.args.providerName, nil, nil, 30)
+			result, err := ExecuteRequest(ctx, tt.args.httpreq, tt.args.providerName, nil, nil, 30, nil)
 
 			if tt.wantErr != "" {
 				require.NotNil(t, err, tt.name)
@@ -409,7 +413,7 @@ func (suite *PluginTestSuite) TestHandleBodyParams() {
 	parentPath := ""
 	action := myPlugin.actions[0]
 
-	handleBodyParams(schema, parentPath, &action)
+	handleBodyParams(mask.Mask{}, schema, parentPath, &action)
 
 	assert.Equal(suite.T(), len(myPlugin.actions[0].Parameters), 13)
 	assert.Contains(suite.T(), myPlugin.actions[0].Parameters, "dashboard.id")
@@ -424,7 +428,7 @@ func (suite *PluginTestSuite) TestParseActionParam() {
 	paramName := "dashboard"
 	pathParam := schema.Properties[paramName]
 
-	actionParam := parseActionParam("test", &paramName, pathParam, false, pathParam.Value.Description)
+	actionParam := parseActionParam(mask.Mask{}, "test", &paramName, pathParam, false, pathParam.Value.Description)
 
 	assert.False(suite.T(), actionParam.Required)
 	assert.Equal(suite.T(), actionParam.Description, "dashboard description")
