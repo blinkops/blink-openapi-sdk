@@ -1,9 +1,12 @@
 package mask
 
 import (
+	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/blinkops/blink-openapi-sdk/zip"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	"io/ioutil"
+	"os"
 )
 
 const (
@@ -40,11 +43,24 @@ func ParseMask(maskFile string) (Mask, error) {
 	}
 
 	mask := Mask{}
+
+	if os.Getenv(consts.ENVStatusKey) != "" {
+		maskFile = maskFile + consts.GzipFile
+	}
 	rawMaskData, err := ioutil.ReadFile(maskFile)
 
 	if err != nil {
 		return Mask{}, err
 	}
+
+	if os.Getenv(consts.ENVStatusKey) != "" {
+		// decompress data
+		rawMaskData, err = zip.UnZipData(rawMaskData)
+		if err != nil {
+			return Mask{}, err
+		}
+	}
+
 
 	if err = yaml.Unmarshal(rawMaskData, &mask); err != nil {
 		return Mask{}, err

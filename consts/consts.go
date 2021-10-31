@@ -26,4 +26,7 @@ const (
 	ParamPlaceholderPrefix = "Example: "
 	Error                  = 1
 	OK                     = 0
+
+	GzipFile = ".gz"
+	ENVStatusKey = "PROD"
 )
