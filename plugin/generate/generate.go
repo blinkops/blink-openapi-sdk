@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	YAMLTemplate =
-`actions:{{range $action := .GetActions}}
+	YAMLTemplate = `actions:{{range $action := .GetActions}}
   {{$action.Name }}:
     alias: {{ actName $action.Name }}
     parameters:{{ range $name, $param := .Parameters}}
@@ -24,8 +23,7 @@ const (
         index: {{ index $action.Name }}{{ end}}
 {{ end}}`
 
-	READMETemplate =
-`## blink-{{ .Describe.Name }}
+	READMETemplate = `## blink-{{ .Describe.Name }}
 > {{ .Describe.Description }}
 {{range .GetActions}}
 ## {{.Name }}
@@ -100,7 +98,6 @@ func GenerateMaskFile(c *cli.Context) error {
 			indexMap[str] = 1
 			return 1
 		},
-
 	})
 	if err != nil {
 		return err

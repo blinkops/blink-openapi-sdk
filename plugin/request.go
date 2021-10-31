@@ -188,7 +188,7 @@ func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *h
 		}
 		if generatedToken != "" {
 			for headerKey, headerPrefix := range prefixes {
-				request.Header.Set(headerKey, headerPrefix + generatedToken)
+				request.Header.Set(headerKey, headerPrefix+generatedToken)
 				return nil
 			}
 		}

@@ -11,13 +11,13 @@ const (
 )
 
 var (
-	FormatPrefixes           = [...]string{"date"}
+	FormatPrefixes = [...]string{"date"}
 )
 
 type (
 	Mask struct {
-		Actions map[string]*MaskedAction `yaml:"actions,omitempty"`
-		ReverseActionAliasMap map[string]string
+		Actions                  map[string]*MaskedAction `yaml:"actions,omitempty"`
+		ReverseActionAliasMap    map[string]string
 		ReverseParameterAliasMap map[string]map[string]string
 	}
 	MaskedAction struct {
@@ -81,7 +81,6 @@ func (m *Mask) GetParameter(actionName string, paramName string) *MaskedActionPa
 
 	return nil
 }
-
 
 func (m *Mask) ReplaceActionAlias(actionName string) string {
 	if originalName, ok := m.ReverseActionAliasMap[actionName]; ok {

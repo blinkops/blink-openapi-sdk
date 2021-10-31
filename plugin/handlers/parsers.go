@@ -19,7 +19,7 @@ func DefineOperations(openApi *openapi3.T) error {
 		pathItem := openApi.Paths[requestPath]
 		// These are parameters defined for all methods on a given path. They
 		// are shared by all methods.
-		globalParams:= describeParameters(pathItem.Parameters)
+		globalParams := describeParameters(pathItem.Parameters)
 
 		// Each path can have a number of operations, POST, GET, OPTIONS, etc.
 		pathOps := pathItem.Operations()
@@ -243,7 +243,7 @@ func generateBodyDefinitions(operationID string, bodyOrRef *openapi3.RequestBody
 	}
 
 	bodyTypeName := operationID + defaultContentType + "Body"
-	bodySchema:= generateGoSchema(defaultContent.Schema)
+	bodySchema := generateGoSchema(defaultContent.Schema)
 
 	// If the request has a body, but it's not a user defined
 	// type under #/components, we'll define a type for it, so

@@ -29,18 +29,18 @@ func (suite *PluginTestSuite) TestSetAuthenticationHeaders() {
 	ctx := plugin_sdk.NewActionContext(map[string]interface{}{}, cns)
 
 	type args struct {
-		httpreq      *http.Request
+		httpreq *http.Request
 	}
 
-	u,_ := url.Parse(testServer.URL)
+	u, _ := url.Parse(testServer.URL)
 
 	tests := []struct {
-		name    string
-		args    args
+		name string
+		args args
 	}{
 		{
-			name:    "happy path",
-			args:    args{httpreq: &http.Request{Method: "POST",
+			name: "happy path",
+			args: args{httpreq: &http.Request{Method: "POST",
 				URL: &url.URL{Scheme: "http",
 					Host: u.Host, Path: u.Path},
 				Header: map[string][]string{}}},

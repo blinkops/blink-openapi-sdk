@@ -24,6 +24,6 @@ const (
 	BasicAuthPassword = "PASSWORD"
 
 	ParamPlaceholderPrefix = "Example: "
-	Error = 1
-	OK    = 0
+	Error                  = 1
+	OK                     = 0
 )

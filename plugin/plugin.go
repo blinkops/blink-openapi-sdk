@@ -29,14 +29,14 @@ type Result struct {
 }
 
 type openApiPlugin struct {
-	actions     []plugin.Action
+	actions             []plugin.Action
 	description         plugin.Description
 	requestUrl          string
 	headerValuePrefixes HeaderValuePrefixes
 	headerAlias         HeaderAlias
 	pathParams          PathParams
-	mask      mask.Mask
-	callbacks Callbacks
+	mask                mask.Mask
+	callbacks           Callbacks
 }
 
 type PluginMetadata struct {
@@ -51,14 +51,14 @@ type PluginMetadata struct {
 }
 
 type parseOpenApiResponse struct {
-	requestUrl string
+	requestUrl  string
 	description string
-	actions []plugin.Action
+	actions     []plugin.Action
 }
 
 type Callbacks struct {
-	TestCredentialsFunc func(*plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
-	ValidateResponse    func(Result) (bool, []byte)
+	TestCredentialsFunc      func(*plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
+	ValidateResponse         func(Result) (bool, []byte)
 	GetTokenFromCrendentials GetTokenFromCredentials
 }
 
@@ -108,8 +108,8 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.callbacks.GetTokenFromCrendentials, request.Timeout)
-	
-  res.Result = result.Body
+
+	res.Result = result.Body
 
 	if err != nil {
 		res.ErrorCode = consts.Error
@@ -222,7 +222,6 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 	// add to request parameters
 	paramsFromConnection := getPathParamsFromConnection(connection, p.pathParams)
 
-
 	for k, v := range paramsFromConnection {
 		requestParameters[k] = v
 	}
@@ -262,7 +261,7 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 	return request, nil
 }
 
-func getPathParamsFromConnection(connection map[string]interface{}, params PathParams) (map[string]string) {
+func getPathParamsFromConnection(connection map[string]interface{}, params PathParams) map[string]string {
 	paramsFromConnection := map[string]string{}
 	for header, headerValue := range connection {
 		if headerValueString, ok := headerValue.(string); ok {
@@ -297,7 +296,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 	}
 
 	return &openApiPlugin{
-		actions:             parseOpenApiResponse.actions,
+		actions:    parseOpenApiResponse.actions,
 		requestUrl: parseOpenApiResponse.requestUrl,
 		description: plugin.Description{
 			Name:        meta.Name,
@@ -392,8 +391,8 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parseOpenApiRespo
 	})
 	return parseOpenApiResponse{
 		description: openApi.Info.Description,
-		requestUrl: requestUrl,
-		actions: actions,
+		requestUrl:  requestUrl,
+		actions:     actions,
 	}, nil
 
 }

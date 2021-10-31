@@ -382,18 +382,18 @@ func (suite *ParsersTestSuite) TestGetPropertyByName() {
 	}
 
 	tests := []struct {
-		name   string
-		args   args
+		name      string
+		args      args
 		nilOutput bool
 	}{
 		{
-			name: "Unexisting properly name - nil result",
-			args: args{propertyName: "unexistingProperyName"},
+			name:      "Unexisting properly name - nil result",
+			args:      args{propertyName: "unexistingProperyName"},
 			nilOutput: true,
 		},
 		{
-			name: "Existing properly name - schema result",
-			args: args{propertyName: "folderId"},
+			name:      "Existing properly name - schema result",
+			args:      args{propertyName: "folderId"},
 			nilOutput: false,
 		},
 	}
