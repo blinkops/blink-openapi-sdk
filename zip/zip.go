@@ -28,8 +28,7 @@ func UnZipData(data []byte) (resData []byte, err error) {
 	return
 }
 
-func LoadFromGzipFile(loader *openapi3.Loader, filePath string) (*openapi3.T, error) {
-
+func ReadGzipDataFromFile(filePath string) ([]byte, error){
 	content, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -41,6 +40,16 @@ func LoadFromGzipFile(loader *openapi3.Loader, filePath string) (*openapi3.T, er
 		return nil, uncompressedDataErr
 	}
 
-	return loader.LoadFromData(uncompressedData)
+	return uncompressedData, nil
+}
+
+func LoadFromGzipFile(loader *openapi3.Loader, filePath string) (*openapi3.T, error) {
+
+	data, err := ReadGzipDataFromFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return loader.LoadFromData(data)
 
 }

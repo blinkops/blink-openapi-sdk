@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -407,14 +408,39 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 	if err == nil && u.Scheme != "" && u.Host != "" {
 		return loader.LoadFromURI(u)
 	} else {
-		// the file is gzipped
-		if os.Getenv(consts.ENVStatusKey) != "" {
 
+		if os.Getenv(consts.ENVStatusKey) != "" {
+			// when running in prod the openAPI file is gzipped
 			parsed, err := zip.LoadFromGzipFile(loader, filePath+consts.GzipFile)
 
 			if err != nil{
-				fmt.Printf("%#v", err)
-				return nil, err
+				// loadFromGzipFile failed because it couldn't find a ref file
+				// because the ref file is also gzipped.
+				re := regexp.MustCompile(`open (.*):`)
+
+				// find the path of the ref file.
+				refPath := re.FindStringSubmatch(err.Error())[1]
+
+				// read the data from the ref file
+				data, err := zip.ReadGzipDataFromFile(refPath)
+				if err != nil {
+					return nil, err
+				}
+
+				// write the decompressed data to a new file.
+				err = os.WriteFile(refPath, data, 0644)
+				if err != nil {
+					return nil, err
+				}
+
+				// clean up the unused gzipped ref.
+				err = os.Remove(refPath+consts.GzipFile)
+				if err != nil {
+					return nil, err
+				}
+
+				// call the function again to continue parsing the openAPI file.
+				return loadOpenApi(filePath)
 			}
 
 			return parsed, nil
