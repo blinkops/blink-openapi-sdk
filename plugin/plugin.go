@@ -10,12 +10,12 @@ import (
 	"github.com/blinkops/blink-sdk/plugin/connections"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
-	fp "path/filepath"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	fp "path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -423,7 +423,7 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 				refPath := re.FindStringSubmatch(err.Error())[1]
 
 				// read the data from the ref file
-				data, err := zip.ReadGzipDataFromFile(fp.Dir(filePath)+refPath+consts.GzipFile)
+				data, err := zip.ReadGzipDataFromFile(fp.Dir(filePath)+"/"+refPath+consts.GzipFile)
 				if err != nil {
 					return nil, err
 				}
