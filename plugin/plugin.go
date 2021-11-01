@@ -411,40 +411,44 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 	} else {
 
 		if os.Getenv(consts.ENVStatusKey) != "" {
-			// when running in prod the openAPI file is gzipped
-			parsed, err := zip.LoadFromGzipFile(loader, filePath+consts.GzipFile)
 
-			if err != nil{
-				// loadFromGzipFile failed because it couldn't find a ref file
-				// because the ref file is also gzipped.
-				re := regexp.MustCompile(`open (.*):`)
+			for {
+				// when running in prod the openAPI file is gzipped
+				parsed, err := zip.LoadFromGzipFile(loader, filePath+consts.GzipFile)
 
-				// find the path of the ref file.
-				refPath := re.FindStringSubmatch(err.Error())[1]
-
-				// read the data from the ref file
-				data, err := zip.ReadGzipDataFromFile(fp.Dir(filePath)+"/"+refPath+consts.GzipFile)
 				if err != nil {
-					return nil, err
+					// loadFromGzipFile failed because it couldn't find a ref file
+					// because the ref file is also gzipped.
+					re := regexp.MustCompile(`open (.*):`)
+
+					// find the path of the ref file.
+					refPath := re.FindStringSubmatch(err.Error())[1]
+
+					// read the data from the ref file
+					data, err := zip.ReadGzipDataFromFile(fp.Dir(filePath) + "/" + refPath + consts.GzipFile)
+					if err != nil {
+						return nil, err
+					}
+
+					// write the decompressed data to a new file.
+					err = os.WriteFile(fp.Dir(filePath)+"/"+refPath, data, 0644)
+					if err != nil {
+						return nil, err
+					}
+
+					// clean up the unused gzipped ref.
+					err = os.Remove(fp.Dir(filePath) + "/" + refPath + consts.GzipFile)
+					if err != nil {
+						return nil, err
+					}
+
+					// call the function again to continue parsing the openAPI file.
+					continue
 				}
 
-				// write the decompressed data to a new file.
-				err = os.WriteFile(fp.Dir(filePath)+"/"+refPath, data, 0644)
-				if err != nil {
-					return nil, err
-				}
-
-				// clean up the unused gzipped ref.
-				err = os.Remove(fp.Dir(filePath)+"/"+refPath+consts.GzipFile)
-				if err != nil {
-					return nil, err
-				}
-
-				// call the function again to continue parsing the openAPI file.
-				return loadOpenApi(filePath)
+				return parsed, nil
 			}
 
-			return parsed, nil
 		}
 		// normal yaml
 		return loader.LoadFromFile(filePath)
