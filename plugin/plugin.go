@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/blinkops/blink-openapi-sdk/consts"
@@ -594,8 +595,9 @@ func parseActionParam(maskData mask.Mask, actionName string, paramName *string, 
 			paramDefault = maskedParam.Default
 
 			if paramType == consts.TypeJson {
-				if defaultMarshal, err := json.MarshalIndent(paramDefault, "", "\t"); err != nil {
-					paramDefault = string(defaultMarshal)
+				defaultMarshal := new(bytes.Buffer)
+				if err := json.Indent(defaultMarshal, []byte(paramDefault), "", "\t"); err == nil {
+					paramDefault = defaultMarshal.String()
 				} else {
 					log.Debugf("Failed to marshal default value: %s, got: %v", paramDefault, err)
 				}
