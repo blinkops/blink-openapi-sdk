@@ -429,13 +429,13 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 				}
 
 				// write the decompressed data to a new file.
-				err = os.WriteFile(refPath, data, 0644)
+				err = os.WriteFile(fp.Dir(filePath)+"/"+refPath, data, 0644)
 				if err != nil {
 					return nil, err
 				}
 
 				// clean up the unused gzipped ref.
-				err = os.Remove(refPath+consts.GzipFile)
+				err = os.Remove(fp.Dir(filePath)+"/"+refPath+consts.GzipFile)
 				if err != nil {
 					return nil, err
 				}
