@@ -630,3 +630,13 @@ func extractTypeFromFormat(paramFormat string) string {
 
 	return ""
 }
+
+// GetRequestUrl Exported for plugin test credentials function
+func GetRequestUrl(actionContext *plugin.ActionContext, provider string) (string, error) {
+	if connection, err := getCredentials(actionContext, provider); err != nil {
+		log.Errorf("Failed to fetch credentials for %s, got: %v", provider, err)
+		return "", errors.Errorf("Failed to fetch credentials for %s", provider)
+	} else {
+		return getRequestUrlFromConnection("", connection), nil
+	}
+}
