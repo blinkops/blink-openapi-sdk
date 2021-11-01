@@ -442,6 +442,7 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 						return nil, err
 					}
 
+					loader = openapi3.NewLoader()
 					// call the function again to continue parsing the openAPI file.
 					continue
 				}
