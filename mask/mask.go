@@ -30,6 +30,7 @@ type (
 		Type     string `yaml:"type,omitempty"` // password/date - 2017-07-21/date_time - 2017-07-21T17:32:28Z/date_epoch - 1631399887
 		Index    int64  `yaml:"index,omitempty"`
 		IsMulti  bool   `yaml:"is_multi,omitempty"` // is this a multi-select field
+		Default  string `yaml:"default,omitempty"`  // override parameter default value
 	}
 )
 
