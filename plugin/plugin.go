@@ -597,7 +597,7 @@ func parseActionParam(maskData mask.Mask, actionName string, paramName *string, 
 				if defaultMarshal, err := json.MarshalIndent(paramDefault, "", "\t"); err != nil {
 					paramDefault = string(defaultMarshal)
 				} else {
-					log.Debug("Failed to marshal default value: %s, got: %v", paramDefault, err)
+					log.Debugf("Failed to marshal default value: %s, got: %v", paramDefault, err)
 				}
 			}
 		}
