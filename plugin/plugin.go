@@ -422,7 +422,7 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 				refPath := re.FindStringSubmatch(err.Error())[1]
 
 				// read the data from the ref file
-				data, err := zip.ReadGzipDataFromFile(refPath)
+				data, err := zip.ReadGzipDataFromFile(refPath+consts.GzipFile)
 				if err != nil {
 					return nil, err
 				}
