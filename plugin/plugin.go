@@ -7,6 +7,7 @@ import (
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
+	"github.com/blinkops/blink-openapi-sdk/zip"
 	"github.com/blinkops/blink-sdk/plugin"
 	"github.com/blinkops/blink-sdk/plugin/connections"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -15,6 +16,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -52,7 +55,7 @@ type PluginMetadata struct {
 	PathParams          PathParams
 }
 
-type parseOpenApiResponse struct {
+type parsedOpenApi struct {
 	requestUrl  string
 	description string
 	actions     []plugin.Action
@@ -292,17 +295,17 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		return nil, errors.Errorf("Cannot parse mask file: %s", meta.MaskFile)
 	}
 
-	parseOpenApiResponse, err := parseOpenApiFile(mask, meta.OpenApiFile)
+	parsedFile, err := parseOpenApiFile(mask, meta.OpenApiFile)
 	if err != nil {
 		return nil, err
 	}
 
 	return &openApiPlugin{
-		actions:    parseOpenApiResponse.actions,
-		requestUrl: parseOpenApiResponse.requestUrl,
+		actions:    parsedFile.actions,
+		requestUrl: parsedFile.requestUrl,
 		description: plugin.Description{
 			Name:        meta.Name,
-			Description: parseOpenApiResponse.description,
+			Description: parsedFile.description,
 			Tags:        meta.Tags,
 			Connections: connectionTypes,
 			Provider:    meta.Provider,
@@ -314,17 +317,17 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 	}, nil
 }
 
-func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parseOpenApiResponse, error) {
+func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, error) {
 	var actions []plugin.Action
 
 	openApi, err := loadOpenApi(OpenApiFile)
 
 	if err != nil {
-		return parseOpenApiResponse{}, err
+		return parsedOpenApi{}, err
 	}
 
 	if len(openApi.Servers) == 0 {
-		return parseOpenApiResponse{}, err
+		return parsedOpenApi{}, err
 	}
 
 	// Set default openApi server
@@ -338,7 +341,7 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parseOpenApiRespo
 	err = handlers.DefineOperations(openApi)
 
 	if err != nil {
-		return parseOpenApiResponse{}, err
+		return parsedOpenApi{}, err
 	}
 
 	for _, operation := range handlers.OperationDefinitions {
@@ -391,7 +394,7 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parseOpenApiRespo
 	sort.Slice(actions, func(i, j int) bool {
 		return actions[i].Name < actions[j].Name
 	})
-	return parseOpenApiResponse{
+	return parsedOpenApi{
 		description: openApi.Info.Description,
 		requestUrl:  requestUrl,
 		actions:     actions,
@@ -400,15 +403,43 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parseOpenApiRespo
 }
 
 func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
+	const pathErrorRe = `open (.*):`
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
 	u, err := url.Parse(filePath)
 
 	if err == nil && u.Scheme != "" && u.Host != "" {
 		return loader.LoadFromURI(u)
-	} else {
-		return loader.LoadFromFile(filePath)
 	}
+
+	if os.Getenv(consts.ENVStatusKey) != "" {
+		for {
+			// when running in prod the openAPI file is gzipped
+			parsed, err := zip.LoadFromGzipFile(loader, filePath+consts.GzipFile)
+
+			if err != nil {
+				// loadFromGzipFile failed because it couldn't find a ref file
+				// because the ref file is also gzipped.
+				re := regexp.MustCompile(pathErrorRe)
+
+				// find the path of the ref file in the error.
+				refPath := re.FindStringSubmatch(err.Error())[1]
+
+				if err = zip.UnzipFile(refPath); err != nil {
+					return nil, err
+				}
+
+				// call the function again to continue parsing the openAPI file.
+				continue
+			}
+
+			return parsed, nil
+		}
+
+	}
+	// normal yaml
+	return loader.LoadFromFile(filePath)
+
 }
 
 func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath string, action *plugin.Action) {
