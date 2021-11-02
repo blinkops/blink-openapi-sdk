@@ -354,7 +354,16 @@ func GetPropertyByName(name string, propertySchema *openapi3.Schema) *openapi3.S
 	var subPropertySchema *openapi3.Schema
 	allSchemas := []openapi3.SchemaRefs{propertySchema.AllOf, propertySchema.OneOf, propertySchema.AnyOf}
 
-	if propertySchema.Properties == nil {
+	if propertySchema.Properties != nil {
+		for propertyName, bodyProperty := range propertySchema.Properties {
+			if propertyName == name {
+				subPropertySchema = bodyProperty.Value
+				break
+			}
+		}
+	}
+
+	if subPropertySchema == nil {
 		for _, schemaType := range allSchemas {
 			for _, schemaParams := range schemaType {
 				subPropertySchema = GetPropertyByName(name, schemaParams.Value)
@@ -368,12 +377,6 @@ func GetPropertyByName(name string, propertySchema *openapi3.Schema) *openapi3.S
 		}
 
 		return subPropertySchema
-	}
-	for propertyName, bodyProperty := range propertySchema.Properties {
-		if propertyName == name {
-			subPropertySchema = bodyProperty.Value
-			break
-		}
 	}
 
 	return subPropertySchema
