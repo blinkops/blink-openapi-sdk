@@ -36,43 +36,35 @@ type (
 	}
 )
 
-// ParseMask recieves a mask file, parses it and returns a new mask object.
-func ParseMask(maskFile string) (Mask, error) {
+// ParseMask receives a mask file, parses it and returns a new mask object.
+func ParseMask(maskFile string) (mask Mask, err error) {
+	mask = Mask{}
+
 	if maskFile == "" {
-		return Mask{}, nil
+		return
 	}
 
-	mask := Mask{}
-
+	var rawMaskData []byte
 	if os.Getenv(consts.ENVStatusKey) != "" {
-		maskFile = maskFile + consts.GzipFile
+		rawMaskData, err = zip.ReadGzipFile(maskFile + consts.GzipFile)
+	} else {
+		rawMaskData, err = ioutil.ReadFile(maskFile)
 	}
-	rawMaskData, err := ioutil.ReadFile(maskFile)
-
 	if err != nil {
-		return Mask{}, err
+		return
 	}
-
-	if os.Getenv(consts.ENVStatusKey) != "" {
-		// decompress data
-		rawMaskData, err = zip.UnZipData(rawMaskData)
-		if err != nil {
-			return Mask{}, err
-		}
-	}
-
 
 	if err = yaml.Unmarshal(rawMaskData, &mask); err != nil {
-		return Mask{}, err
+		return
 	}
 
 	mask.buildActionAliasMap()
 	mask.buildParamAliasMap()
 
-	return mask, nil
+	return
 }
 
-// GetAction recieves an action's name and returns
+// GetAction receives an action's name and returns
 func (m *Mask) GetAction(actionName string) *MaskedAction {
 	originalActionName := m.ReplaceActionAlias(actionName)
 

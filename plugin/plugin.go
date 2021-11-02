@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	fp "path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -402,58 +401,43 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, er
 }
 
 func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
+	const pathErrorRe = `open (.*):`
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
 	u, err := url.Parse(filePath)
 
 	if err == nil && u.Scheme != "" && u.Host != "" {
 		return loader.LoadFromURI(u)
-	} else {
+	}
 
-		if os.Getenv(consts.ENVStatusKey) != "" {
+	if os.Getenv(consts.ENVStatusKey) != "" {
+		for {
+			// when running in prod the openAPI file is gzipped
+			parsed, err := zip.LoadFromGzipFile(loader, filePath+consts.GzipFile)
 
-			for {
-				// when running in prod the openAPI file is gzipped
-				parsed, err := zip.LoadFromGzipFile(loader, filePath+consts.GzipFile)
+			if err != nil {
+				// loadFromGzipFile failed because it couldn't find a ref file
+				// because the ref file is also gzipped.
+				re := regexp.MustCompile(pathErrorRe)
 
-				if err != nil {
-					// loadFromGzipFile failed because it couldn't find a ref file
-					// because the ref file is also gzipped.
-					re := regexp.MustCompile(`open (.*):`)
+				// find the path of the ref file in the error.
+				refPath := re.FindStringSubmatch(err.Error())[1]
 
-					// find the path of the ref file.
-					refPath := re.FindStringSubmatch(err.Error())[1]
-
-					// read the data from the ref file
-					data, err := zip.ReadGzipDataFromFile(fp.Dir(filePath) + "/" + refPath + consts.GzipFile)
-					if err != nil {
-						return nil, err
-					}
-
-					// write the decompressed data to a new file.
-					err = os.WriteFile(fp.Dir(filePath)+"/"+refPath, data, 0644)
-					if err != nil {
-						return nil, err
-					}
-
-					// clean up the unused gzipped ref.
-					err = os.Remove(fp.Dir(filePath) + "/" + refPath + consts.GzipFile)
-					if err != nil {
-						return nil, err
-					}
-
-					loader = openapi3.NewLoader()
-					// call the function again to continue parsing the openAPI file.
-					continue
+				if err = zip.UnzipFile(refPath); err != nil {
+					return nil, err
 				}
 
-				return parsed, nil
+				// call the function again to continue parsing the openAPI file.
+				continue
 			}
 
+			return parsed, nil
 		}
-		// normal yaml
-		return loader.LoadFromFile(filePath)
+
 	}
+	// normal yaml
+	return loader.LoadFromFile(filePath)
+
 }
 
 func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath string, action *plugin.Action) {
