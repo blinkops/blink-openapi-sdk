@@ -12,7 +12,7 @@ import (
 	fp "path/filepath"
 )
 
-// UnzipFile unzips the file and saves
+// UnzipFile unzips the file and saves to disk.
 func UnzipFile(filePath string) (err error) {
 	// the file path plus the file ending
 	gzipFile := filePath + consts.GzipFile
