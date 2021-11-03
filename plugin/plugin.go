@@ -473,11 +473,10 @@ func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath st
 			fullParamPath = parentPath + consts.BodyParamDelimiter + fullParamPath
 		}
 
-		// Determine whether the parameter's parents are required
-		areParentsRequired(propertyName, schema, &parentsRequired)
-
 		// Keep recursion until leaf node is found
 		if bodyProperty.Value.Properties != nil {
+			// Determine whether the parameter's parents are required
+			areParentsRequired(propertyName, schema, &parentsRequired)
 			handleBodyParams(maskData, bodyProperty.Value, fullParamPath, parentsRequired, action)
 		} else {
 			handleBodyParamOfType(maskData, bodyProperty.Value, fullParamPath, parentsRequired, action)
