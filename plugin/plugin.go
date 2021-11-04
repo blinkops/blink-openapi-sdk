@@ -442,10 +442,10 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 
 }
 
-func areParentsRequired(propertyName string, schema *openapi3.Schema, parentsRequired bool) bool {
+func areParentsRequired(propertyName string, schema *openapi3.Schema) bool {
 	for _, requiredParam := range schema.Required {
 		if propertyName == requiredParam {
-			return parentsRequired
+			return true
 		}
 	}
 
@@ -470,7 +470,9 @@ func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath st
 		// Keep recursion until leaf node is found
 		if bodyProperty.Value.Properties != nil {
 			// Determine whether the parameter's parents are required
-			parentsRequired = areParentsRequired(propertyName, schema, parentsRequired)
+			if parentsRequired {
+				parentsRequired = areParentsRequired(propertyName, schema)
+			}
 			handleBodyParams(maskData, bodyProperty.Value, fullParamPath, parentsRequired, action)
 		} else {
 			handleBodyParamOfType(maskData, bodyProperty.Value, fullParamPath, parentsRequired, action)
