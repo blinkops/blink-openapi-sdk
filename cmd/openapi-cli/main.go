@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/blinkops/blink-openapi-sdk/plugin/generate"
+	"github.com/blinkops/blink-openapi-sdk/generate"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"os"
@@ -43,7 +43,7 @@ func main() {
 						Name:    "readme",
 						Aliases: []string{"md", "r"},
 						Usage:   "generate readme.md for openapi plugins",
-						Action:  generate.GenerateMarkdown,
+						Action:  gen.GenerateMarkdown,
 					},
 					{
 						Flags: []cli.Flag{
@@ -65,7 +65,7 @@ func main() {
 						Name:    "mask",
 						Aliases: []string{"m"},
 						Usage:   "generate mask.yaml for openapi plugins",
-						Action:  generate.GenerateMaskFile,
+						Action:  gen.GenerateMaskFile,
 					},
 				},
 			},

@@ -1,4 +1,4 @@
-package generate
+package gen
 
 import (
 	"github.com/blinkops/blink-openapi-sdk/plugin"
@@ -19,7 +19,7 @@ const (
         {{- if $param.Required }}
         required: true{{end}}
         {{- if $param.Format }}
-        type: {{ $param.Format }}{{end}}
+        type: {{ fixType $param.Format }}{{end}}
         index: {{ index $action.Name }}{{ end}}
 {{ end}}`
 
@@ -97,6 +97,9 @@ func GenerateMaskFile(c *cli.Context) error {
 			}
 			indexMap[str] = 1
 			return 1
+		},
+		"fixType": func(str string) string {
+			return strings.ReplaceAll(str,"-","_")
 		},
 	})
 	if err != nil {
