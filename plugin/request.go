@@ -115,6 +115,7 @@ func parseBodyParams(requestParameters map[string]string, operation *handlers.Op
 
 		// add the JSON to the body.
 		request.Body = ioutil.NopCloser(strings.NewReader(string(marshaledBody)))
+		request.ContentLength = int64(len(marshaledBody))
 	}
 	return nil
 }
