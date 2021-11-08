@@ -55,6 +55,13 @@ func main() {
 								Required: true,
 							},
 							&cli.StringFlag{
+								Name:        "mask",
+								Aliases:     []string{"m"},
+								Value:       "mask.yaml",
+								Usage:       "mask file to regenerate a mask from",
+								DefaultText: "",
+							},
+							&cli.StringFlag{
 								Name:        "output",
 								Aliases:     []string{"o"},
 								Value:       "mask.yaml",

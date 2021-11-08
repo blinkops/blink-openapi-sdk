@@ -52,7 +52,7 @@ const (
 func GenerateMaskFile(c *cli.Context) error {
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
 		Name:        "",
-		MaskFile:    "",
+		MaskFile:    c.String("mask"),
 		OpenApiFile: c.String("file"),
 	}, plugin.Callbacks{})
 
