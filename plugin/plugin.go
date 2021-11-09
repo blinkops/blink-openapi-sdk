@@ -312,6 +312,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		},
 		headerValuePrefixes: meta.HeaderValuePrefixes,
 		headerAlias:         meta.HeaderAlias,
+		pathParams:          meta.PathParams,
 		mask:                mask,
 		callbacks:           callbacks,
 	}, nil
