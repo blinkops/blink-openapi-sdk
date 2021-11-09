@@ -469,7 +469,7 @@ func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath st
 		}
 
 		// Keep recursion until leaf node is found
-		if bodyProperty.Value.Properties != nil && bodyProperty.Value.Type != consts.TypeObject {
+		if bodyProperty.Value.Properties != nil {
 			// Determine whether the parameter's parents are required
 			if parentsRequired {
 				parentsRequired = areParentsRequired(propertyName, schema)
