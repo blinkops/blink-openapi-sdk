@@ -5,6 +5,7 @@ import (
 	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
 	"github.com/urfave/cli/v2"
 	"html/template"
+	"io"
 	"os"
 	"strings"
 )
@@ -155,7 +156,7 @@ func (c SingleAction) GetActions() []sdkPlugin.Action {
 	return actions
 }
 
-func runTemplate(f *os.File, templateStr string, obj interface{}) error {
+func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
 	indexMap := map[string]int{}
 
 	genAlias := func(str string) string {
