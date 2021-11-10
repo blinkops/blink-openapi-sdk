@@ -251,7 +251,7 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 		}
 	}
 
-	if operation.Method == http.MethodPost || operation.Method == http.MethodPut {
+	if operation.Method == http.MethodPost || operation.Method == http.MethodPut || operation.Method == http.MethodPatch {
 		bodyType := operation.GetDefaultBodyType()
 
 		if bodyType != "" {
