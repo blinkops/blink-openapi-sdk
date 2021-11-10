@@ -415,11 +415,11 @@ func (suite *PluginTestSuite) TestHandleBodyParams() {
 
 	handleBodyParams(mask.Mask{}, schema, parentPath, true, &action)
 
-	assert.Equal(suite.T(), 6, len(myPlugin.actions[0].Parameters))
-	assert.NotContains(suite.T(), myPlugin.actions[0].Parameters, "dashboard.id")
-	assert.NotContains(suite.T(), myPlugin.actions[0].Parameters, "dashboard.timezone")
-	assert.Equal(suite.T(), "dashboard description", myPlugin.actions[0].Parameters["dashboard"].Description)
-	assert.Equal(suite.T(), true, myPlugin.actions[0].Parameters["folderId"].Required)
+	assert.Equal(suite.T(), 13, len(myPlugin.actions[0].Parameters))
+	assert.Contains(suite.T(), myPlugin.actions[0].Parameters, "dashboard.id")
+	assert.Contains(suite.T(), myPlugin.actions[0].Parameters, "dashboard.timezone")
+	assert.Equal(suite.T(), "my test description", myPlugin.actions[0].Parameters["dashboard.timezone"].Description)
+	assert.Equal(suite.T(), true, myPlugin.actions[0].Parameters["dashboard.timezone"].Required)
 }
 
 func (suite *PluginTestSuite) TestParseActionParam() {
