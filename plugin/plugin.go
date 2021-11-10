@@ -382,7 +382,7 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, er
 
 		for _, paramBody := range operation.Bodies {
 			if paramBody.DefaultBody {
-				handleBodyParams(maskData, paramBody.Schema.OApiSchema, "", paramBody.Required, paramBody.Required, &action)
+				handleBodyParams(maskData, paramBody.Schema.OApiSchema, "", paramBody.Required, &action)
 				break
 			}
 		}
@@ -443,7 +443,11 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 
 }
 
-func areParentsRequired(propertyName string, schema *openapi3.Schema) bool {
+func areParentsRequired(parentsRequired bool, propertyName string, schema *openapi3.Schema) bool {
+	if !parentsRequired {
+		return false
+	}
+
 	for _, requiredParam := range schema.Required {
 		if propertyName == requiredParam {
 			return true
@@ -453,8 +457,8 @@ func areParentsRequired(propertyName string, schema *openapi3.Schema) bool {
 	return false
 }
 
-func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath string, parentsRequired bool, bodyRequired bool, action *plugin.Action) {
-	handleBodyParamOfType(maskData, schema, parentPath, parentsRequired, bodyRequired, action)
+func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath string, parentsRequired bool, action *plugin.Action) {
+	handleBodyParamOfType(maskData, schema, parentPath, parentsRequired, action)
 
 	for propertyName, bodyProperty := range schema.Properties {
 		fullParamPath := propertyName
@@ -466,20 +470,13 @@ func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath st
 		// Json params are represented as dot delimited params to allow proper parsing in UI later on
 		if parentPath != "" {
 			fullParamPath = parentPath + consts.BodyParamDelimiter + fullParamPath
-		} else {
-			// If the property has no parents, its parent is the body of the request
-			parentsRequired = bodyRequired
 		}
 
 		// Keep recursion until leaf node is found
 		if bodyProperty.Value.Properties != nil {
-			// Determine whether the parameter's parents are required
-			if parentsRequired {
-				parentsRequired = areParentsRequired(propertyName, schema)
-			}
-			handleBodyParams(maskData, bodyProperty.Value, fullParamPath, parentsRequired, bodyRequired, action)
+			handleBodyParams(maskData, bodyProperty.Value, fullParamPath, areParentsRequired(parentsRequired, propertyName, schema), action)
 		} else {
-			handleBodyParamOfType(maskData, bodyProperty.Value, fullParamPath, parentsRequired, bodyRequired, action)
+			handleBodyParamOfType(maskData, bodyProperty.Value, fullParamPath, parentsRequired, action)
 			isParamRequired := false
 
 			for _, requiredParam := range schema.Required {
@@ -496,7 +493,7 @@ func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath st
 	}
 }
 
-func handleBodyParamOfType(maskData mask.Mask, schema *openapi3.Schema, parentPath string, parentsRequired bool, bodyRequired bool, action *plugin.Action) {
+func handleBodyParamOfType(maskData mask.Mask, schema *openapi3.Schema, parentPath string, parentsRequired bool, action *plugin.Action) {
 	if schema.AllOf != nil || schema.AnyOf != nil || schema.OneOf != nil {
 
 		allSchemas := []openapi3.SchemaRefs{schema.AllOf, schema.AnyOf, schema.OneOf}
@@ -504,7 +501,7 @@ func handleBodyParamOfType(maskData mask.Mask, schema *openapi3.Schema, parentPa
 		// find properties nested in Allof, Anyof, Oneof
 		for _, schemaType := range allSchemas {
 			for _, schemaParams := range schemaType {
-				handleBodyParams(maskData, schemaParams.Value, parentPath, parentsRequired, bodyRequired, action)
+				handleBodyParams(maskData, schemaParams.Value, parentPath, parentsRequired, action)
 			}
 		}
 	}
