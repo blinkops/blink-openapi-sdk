@@ -2,6 +2,7 @@ package gen
 
 import (
 	"github.com/blinkops/blink-openapi-sdk/plugin"
+	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
 	"github.com/urfave/cli/v2"
 	"html/template"
 	"os"
@@ -9,7 +10,7 @@ import (
 )
 
 const (
-	YAMLTemplate = `actions:{{range $action := .GetActions}}
+	Action = `{{range $action := .GetActions}}
   {{$action.Name }}:
     alias: {{ actName $action.Name }}
     parameters:{{ range $name, $param := .Parameters}}
@@ -20,8 +21,9 @@ const (
         required: true{{end}}
         {{- if $param.Format }}
         type: {{ fixType $param.Format }}{{end}}
-        index: {{ index $action.Name }}{{ end}}
-{{ end}}`
+        index: {{ index $action.Name }}{{ end}}{{ end}}`
+
+	YAMLTemplate = `actions:` + Action
 
 	READMETemplate = `## blink-{{ .Describe.Name }}
 > {{ .Describe.Description }}
@@ -60,6 +62,100 @@ func GenerateMaskFile(c *cli.Context) error {
 		return err
 	}
 
+	f, err := os.Create(c.String("output"))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	err = runTemplate(f, YAMLTemplate, apiPlugin)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func GenerateMarkdown(c *cli.Context) error {
+
+	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
+		Name:        c.String("name"),
+		MaskFile:    c.String("mask"),
+		OpenApiFile: c.String("file"),
+	}, plugin.Callbacks{})
+
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Create(README)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	err = runTemplate(f, READMETemplate, apiPlugin)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+// GenerateAction appends a single action to mask file.
+func GenerateAction(c *cli.Context) error {
+	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
+		Name:        "",
+		MaskFile:    "",
+		OpenApiFile: c.String("file"),
+	}, plugin.Callbacks{})
+
+	if err != nil {
+		return err
+	}
+
+	singleAction := SingleAction{
+		operationName: c.String("action"),
+		actions:       apiPlugin.GetActions(),
+	}
+
+	f, err := os.OpenFile(c.String("output"), os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	err = runTemplate(f, Action, singleAction)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+type SingleAction struct {
+	operationName string
+	actions       []sdkPlugin.Action
+}
+
+func (c SingleAction) GetActions() []sdkPlugin.Action {
+
+	// filter according to operationName
+	var actions []sdkPlugin.Action
+
+	for _, action := range c.actions {
+		if action.Name == c.operationName {
+			actions = append(actions, action)
+		}
+	}
+
+	return actions
+}
+
+func runTemplate(f *os.File, templateStr string, obj interface{}) error {
 	indexMap := map[string]int{}
 
 	genAlias := func(str string) string {
@@ -81,7 +177,7 @@ func GenerateMaskFile(c *cli.Context) error {
 		return strings.Join(strings.Fields(strings.Title(str)), " ")
 	}
 
-	err = runTemplate(c.String("output"), YAMLTemplate, apiPlugin, template.FuncMap{
+	funcs := template.FuncMap{
 		"actName": genAlias,
 		"paramName": func(str string) string {
 			a := strings.Split(genAlias(str), ".")
@@ -99,44 +195,10 @@ func GenerateMaskFile(c *cli.Context) error {
 			return 1
 		},
 		"fixType": func(str string) string {
-			return strings.ReplaceAll(str,"-","_")
+			return strings.ReplaceAll(str, "-", "_")
 		},
-	})
-	if err != nil {
-		return err
 	}
 
-	return nil
-
-}
-
-func GenerateMarkdown(c *cli.Context) error {
-
-	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
-		Name:        c.String("name"),
-		MaskFile:    c.String("mask"),
-		OpenApiFile: c.String("file"),
-	}, plugin.Callbacks{})
-
-	if err != nil {
-		return err
-	}
-
-	err = runTemplate(README, READMETemplate, apiPlugin, nil)
-	if err != nil {
-		return err
-	}
-
-	return nil
-
-}
-
-func runTemplate(fileName string, templateStr string, obj interface{}, funcs template.FuncMap) error {
-	f, err := os.Create(fileName)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
 	tmpl, err := template.New("").Funcs(funcs).Parse(templateStr)
 
 	if err != nil {
