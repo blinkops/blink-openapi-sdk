@@ -146,7 +146,7 @@ func fixRequestURL(r *http.Request) error {
 }
 
 // ExecuteRequest is used by the 'validate' method in most openapi plugins.
-func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, manipulateCredentials GetTokenFromCredentials) (Result, error) {
+func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, getToken GetTokenFromCredentials) (Result, error) {
 	connection, err := getCredentials(actionContext, providerName)
 	// Remove request url and leave only other authentication headers
 	// We don't want to parse the URL with request params
@@ -157,10 +157,10 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 		log.Warn("No credentials provided")
 	}
 
-	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, manipulateCredentials, timeout)
+	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, getToken, timeout)
 }
 
-func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, manipulateCredentials GetTokenFromCredentials, timeout int32) (Result, error) {
+func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, getToken GetTokenFromCredentials, timeout int32) (Result, error) {
 
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
@@ -168,7 +168,7 @@ func executeRequestWithCredentials(connection map[string]interface{}, httpReques
 
 	result := Result{}
 	log.Info(httpRequest.URL)
-	if err := setAuthenticationHeaders(connection, httpRequest, manipulateCredentials, headerValuePrefixes, headerAlias); err != nil {
+	if err := setAuthenticationHeaders(connection, httpRequest, getToken, headerValuePrefixes, headerAlias); err != nil {
 
 		log.Error(err)
 		return result, err
