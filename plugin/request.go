@@ -187,24 +187,29 @@ func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *h
 		return setCustomHeader(securityHeaders, request, getTokenFromCredentials, prefixes)
 	}
 
-	username, usernameExists := securityHeaders[consts.BasicAuthUsername]
-	password, passwordExists := securityHeaders[consts.BasicAuthPassword]
-	if usernameExists && passwordExists {
-		return setBasicAuth(username, password, request)
-	}
-
+	headers := make(map[string]string)
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
-			// if the header is in our alias map replace it with the value in the map
-			// TOKEN -> AUTHORIZATION
+			header = strings.ToUpper(header)
 			prefix := getPrefix(header, headerValueString, prefixes)
 			if newHeader, ok := headerAlias[header]; ok {
-				header = newHeader
+				header = strings.ToUpper(newHeader)
 				if prefix == "" {
 					prefix = getPrefix(header, headerValueString, prefixes)
 				}
 			}
 			headerValueString = prefix + headerValueString
+
+			// If the user supplied BOTH username and password
+			// Username:Password pair should be base64 encoded
+			// and sent as "Authorization: base64(user:pass)"
+			headers[header] = headerValueString
+			if username, ok := headers[consts.BasicAuthUsername]; ok {
+				if password, ok := headers[consts.BasicAuthPassword]; ok {
+					header, headerValueString = "Authorization", constructBasicAuthHeader(username, password)
+					cleanRedundantHeaders(&request.Header)
+				}
+			}
 
 			request.Header.Set(strings.ToUpper(header), headerValueString)
 		}
@@ -213,7 +218,6 @@ func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *h
 }
 
 // we want to help the user by adding prefixes he might have missed
-// for better compatibility, it checks the original header first and only then the alias
 // example:   Bearer <TOKEN>
 func getPrefix(header string, value string, prefixes HeaderValuePrefixes) string {
 	if val, ok := prefixes[header]; ok {
@@ -224,17 +228,15 @@ func getPrefix(header string, value string, prefixes HeaderValuePrefixes) string
 	return ""
 }
 
-func setBasicAuth(username interface{}, password interface{}, request *http.Request) error {
-	usernameString, ok := username.(string)
-	if !ok {
-		return errors.New("Couldn't convert username value to string")
-	}
-	passwordString, ok := password.(string)
-	if !ok {
-		return errors.New("Couldn't convert password value to string")
-	}
-	request.Header.Set("Authorization",constructBasicAuthHeader(usernameString, passwordString))
-	return nil
+func constructBasicAuthHeader(username, password string) string {
+	data := []byte(fmt.Sprintf("%s:%s", username, password))
+	hashed := base64.StdEncoding.EncodeToString(data)
+	return fmt.Sprintf("%s%s", consts.BasicAuth, hashed)
+}
+
+func cleanRedundantHeaders(requestHeaders *http.Header) {
+	requestHeaders.Del(consts.BasicAuthUsername)
+	requestHeaders.Del(consts.BasicAuthPassword)
 }
 
 func setCustomHeader(securityHeaders map[string]interface{}, request *http.Request, getTokenFromCredentials GetTokenFromCredentials, prefixes HeaderValuePrefixes) error {
@@ -250,17 +252,6 @@ func setCustomHeader(securityHeaders map[string]interface{}, request *http.Reque
 	}
 	log.Info("In order to generate a token with a getTokenFromCredentials function, there has to be one 'prefixes' pair")
 	return errors.New("No prefixes found to be paired with the token")
-}
-
-func constructBasicAuthHeader(username, password string) string {
-	data := []byte(fmt.Sprintf("%s:%s", username, password))
-	hashed := base64.StdEncoding.EncodeToString(data)
-	return fmt.Sprintf("%s%s", consts.BasicAuth, hashed)
-}
-
-func cleanRedundantHeaders(requestHeaders *http.Header) {
-	requestHeaders.Del(consts.BasicAuthUsername)
-	requestHeaders.Del(consts.BasicAuthPassword)
 }
 
 func getRequestUrlFromConnection(requestUrl string, connection map[string]interface{}) string {
