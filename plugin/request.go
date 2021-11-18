@@ -8,6 +8,7 @@ import (
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
 	"github.com/blinkops/blink-sdk/plugin"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
@@ -178,56 +179,77 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
-func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, getTokenFromCrendentials GetTokenFromCredentials, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
+func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, getTokenFromCredentials GetTokenFromCredentials, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
 
-	// If a GetTokenFromCredentials was passed AND there's no "Token" header, generate a token with the function.
-	// When there's a "Token" field in the security headers, it will be first priority
-	if _, ok := securityHeaders["Token"]; getTokenFromCrendentials != nil && !ok {
-		generatedToken, err := getTokenFromCrendentials(securityHeaders)
-		if err != nil {
-			return err
-		}
-		if generatedToken != "" {
-			for headerKey, headerPrefix := range prefixes {
-				request.Header.Set(headerKey, headerPrefix+generatedToken)
-				return nil
-			}
-		}
+	// If a GetTokenFromCredentials was passed AND there's no "Token" key, generate a token with the function.
+	// "Token" is prioritized to allow OAuth
+	if _, ok := securityHeaders["Token"]; getTokenFromCredentials != nil && !ok {
+		return setCustomHeader(securityHeaders, request, getTokenFromCredentials, prefixes)
 	}
 
-	headers := make(map[string]string)
+	username, usernameExists := securityHeaders[consts.BasicAuthUsername]
+	password, passwordExists := securityHeaders[consts.BasicAuthPassword]
+	if usernameExists && passwordExists {
+		return setBasicAuth(username, password, request)
+	}
+
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
-			header = strings.ToUpper(header)
 			// if the header is in our alias map replace it with the value in the map
 			// TOKEN -> AUTHORIZATION
-			if val, ok := headerAlias[header]; ok {
-				header = strings.ToUpper(val)
-			}
-
-			// we want to help the user by adding prefixes he might have missed
-			// for example:   Bearer <TOKEN>
-			if val, ok := prefixes[header]; ok {
-				if !strings.HasPrefix(headerValueString, val) { // check what prefix the user doesn't have
-					// add the prefix
-					headerValueString = val + headerValueString
+			prefix := getPrefix(header, headerValueString, prefixes)
+			if newHeader, ok := headerAlias[header]; ok {
+				header = newHeader
+				if prefix == "" {
+					prefix = getPrefix(header, headerValueString, prefixes)
 				}
 			}
+			headerValueString = prefix + headerValueString
 
-			// If the user supplied BOTH username and password
-			// Username:Password pair should be base64 encoded
-			// and sent as "Authorization: base64(user:pass)"
-			headers[header] = headerValueString
-			if username, ok := headers[consts.BasicAuthUsername]; ok {
-				if password, ok := headers[consts.BasicAuthPassword]; ok {
-					header, headerValueString = "Authorization", constructBasicAuthHeader(username, password)
-					cleanRedundantHeaders(&request.Header)
-				}
-			}
-			request.Header.Set(header, headerValueString)
+			request.Header.Set(strings.ToUpper(header), headerValueString)
 		}
 	}
 	return nil
+}
+
+// we want to help the user by adding prefixes he might have missed
+// for better compatibility, it checks the original header first and only then the alias
+// example:   Bearer <TOKEN>
+func getPrefix(header string, value string, prefixes HeaderValuePrefixes) string {
+	if val, ok := prefixes[header]; ok {
+		if !strings.HasPrefix(value, val) {
+			return val
+		}
+	}
+	return ""
+}
+
+func setBasicAuth(username interface{}, password interface{}, request *http.Request) error {
+	usernameString, ok := username.(string)
+	if !ok {
+		return errors.New("Couldn't convert username value to string")
+	}
+	passwordString, ok := password.(string)
+	if !ok {
+		return errors.New("Couldn't convert password value to string")
+	}
+	request.Header.Set("Authorization",constructBasicAuthHeader(usernameString, passwordString))
+	return nil
+}
+
+func setCustomHeader(securityHeaders map[string]interface{}, request *http.Request, getTokenFromCredentials GetTokenFromCredentials, prefixes HeaderValuePrefixes) error {
+	generatedToken, err := getTokenFromCredentials(securityHeaders)
+	if err != nil {
+		return err
+	}
+	if generatedToken != "" {
+		for headerKey, headerPrefix := range prefixes {
+			request.Header.Set(headerKey, headerPrefix+generatedToken)
+			return nil
+		}
+	}
+	log.Info("In order to generate a token with a getTokenFromCredentials function, there has to be one 'prefixes' pair")
+	return errors.New("No prefixes found to be paired with the token")
 }
 
 func constructBasicAuthHeader(username, password string) string {
