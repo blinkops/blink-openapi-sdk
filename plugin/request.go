@@ -179,19 +179,24 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
 func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request , prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
-
 	headers := make(map[string]string)
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {
 			header = strings.ToUpper(header)
-			prefix := getPrefix(header, headerValueString, prefixes)
-			if newHeader, ok := headerAlias[header]; ok {
-				header = strings.ToUpper(newHeader)
-				if prefix == "" {
-					prefix = getPrefix(header, headerValueString, prefixes)
+			// if the header is in our alias map replace it with the value in the map
+			// TOKEN -> AUTHORIZATION
+			if val, ok := headerAlias[header]; ok {
+				header = strings.ToUpper(val)
+			}
+
+			// we want to help the user by adding prefixes he might have missed
+			// for example:   Bearer <TOKEN>
+			if val, ok := prefixes[header]; ok {
+				if !strings.HasPrefix(headerValueString, val) { // check what prefix the user doesn't have
+					// add the prefix
+					headerValueString = val + headerValueString
 				}
 			}
-			headerValueString = prefix + headerValueString
 
 			// If the user supplied BOTH username and password
 			// Username:Password pair should be base64 encoded
@@ -203,22 +208,10 @@ func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *h
 					cleanRedundantHeaders(&request.Header)
 				}
 			}
-
-			request.Header.Set(strings.ToUpper(header), headerValueString)
+			request.Header.Set(header, headerValueString)
 		}
 	}
 	return nil
-}
-
-// we want to help the user by adding prefixes he might have missed
-// example:   Bearer <TOKEN>
-func getPrefix(header string, value string, prefixes HeaderValuePrefixes) string {
-	if val, ok := prefixes[header]; ok {
-		if !strings.HasPrefix(value, val) {
-			return val
-		}
-	}
-	return ""
 }
 
 func constructBasicAuthHeader(username, password string) string {
