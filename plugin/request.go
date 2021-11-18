@@ -8,7 +8,6 @@ import (
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
 	"github.com/blinkops/blink-sdk/plugin"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
@@ -179,13 +178,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
-func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, getTokenFromCredentials GetTokenFromCredentials, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
-
-	// If a GetTokenFromCredentials was passed AND there's no "Token" key, generate a token with the function.
-	// "Token" is prioritized to allow OAuth
-	if _, ok := securityHeaders["Token"]; getTokenFromCredentials != nil && !ok {
-		return setCustomHeader(securityHeaders, request, getTokenFromCredentials, prefixes)
-	}
+func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request , prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
 
 	headers := make(map[string]string)
 	for header, headerValue := range securityHeaders {
@@ -237,21 +230,6 @@ func constructBasicAuthHeader(username, password string) string {
 func cleanRedundantHeaders(requestHeaders *http.Header) {
 	requestHeaders.Del(consts.BasicAuthUsername)
 	requestHeaders.Del(consts.BasicAuthPassword)
-}
-
-func setCustomHeader(securityHeaders map[string]interface{}, request *http.Request, getTokenFromCredentials GetTokenFromCredentials, prefixes HeaderValuePrefixes) error {
-	generatedToken, err := getTokenFromCredentials(securityHeaders)
-	if err != nil {
-		return err
-	}
-	if generatedToken != "" {
-		for headerKey, headerPrefix := range prefixes {
-			request.Header.Set(headerKey, headerPrefix+generatedToken)
-			return nil
-		}
-	}
-	log.Info("In order to generate a token with a getTokenFromCredentials function, there has to be one 'prefixes' pair")
-	return errors.New("No prefixes found to be paired with the token")
 }
 
 func getRequestUrlFromConnection(requestUrl string, connection map[string]interface{}) string {
