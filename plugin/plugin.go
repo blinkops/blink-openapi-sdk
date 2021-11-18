@@ -64,7 +64,7 @@ type parsedOpenApi struct {
 type Callbacks struct {
 	TestCredentialsFunc  func(*plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
 	ValidateResponse     func(Result) (bool, []byte)
-	setCustomAuthHeaders SetCustomAuthHeaders
+	SetCustomAuthHeaders SetCustomAuthHeaders
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
