@@ -29,5 +29,5 @@ const (
 
 	GzipFile = ".gz"
 	ENVStatusKey = "PROD"
-	NoConnection = "NO_CONNECTION"
+	ConnectionNotMandatory = "CONNECTION_IS_NOT_MANDATORY"
 )

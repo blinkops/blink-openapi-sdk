@@ -434,18 +434,18 @@ func (suite *PluginTestSuite) TestParseActionParam() {
 	assert.Equal(suite.T(), actionParam.Description, "dashboard description")
 }
 
-func (suite *PluginTestSuite) TestIsConnectionNeeded() {
+func (suite *PluginTestSuite) TestIsConnectionMandatory() {
 
 	defer os.Unsetenv("NO_CONNECTION")
 
 	// set the env var true
 	os.Setenv("NO_CONNECTION", "true")
-	assert.False(suite.T(), isConnectionNeeded())
+	assert.False(suite.T(), isConnectionMandatory())
 
 
 	// set the env var false
 	os.Setenv("NO_CONNECTION", "false")
-	assert.True(suite.T(), isConnectionNeeded())
+	assert.True(suite.T(), isConnectionMandatory())
 
 }
 
