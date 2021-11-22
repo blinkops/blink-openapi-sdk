@@ -92,14 +92,14 @@ func (p *openApiPlugin) actionExist(actionName string) bool {
 	return false
 }
 
-func handleNoCredentialsProvided() (*plugin.ExecuteActionResponse, error) {
-	if val, _ := strconv.ParseBool(os.Getenv(consts.NoConnection)); val {
-		return nil, errors.New("No credentials provided")
+func handleNoCredentialsProvided(err error) error {
+	if noConnectionNeeded, _ := strconv.ParseBool(os.Getenv(consts.NoConnection)); !noConnectionNeeded {
+		return err
 	} else {
 		log.Warn("No credentials provided")
 	}
 
-	return nil, nil
+	return nil
 }
 
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
@@ -111,7 +111,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
 
 	if err != nil {
-		if _, err = handleNoCredentialsProvided(); err != nil {
+		if err = handleNoCredentialsProvided(err); err != nil {
 			return nil, err
 		}
 	}
@@ -167,7 +167,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
 
 	if err != nil {
-		if _, err = handleNoCredentialsProvided(); err != nil {
+		if err = handleNoCredentialsProvided(errors.New("No credentials provided")); err != nil {
 			return Result{
 				StatusCode: 0,
 				Body:       nil,
