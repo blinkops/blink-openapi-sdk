@@ -19,6 +19,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -91,6 +92,11 @@ func (p *openApiPlugin) actionExist(actionName string) bool {
 	return false
 }
 
+func isConnectionMandatory() bool {
+	connectionNotMandatory, _ := strconv.ParseBool(os.Getenv(consts.ConnectionNotMandatory))
+	return !connectionNotMandatory
+}
+
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
 	connection, err := getCredentials(actionContext, p.Describe().Provider)
 	p.requestUrl = getRequestUrlFromConnection(p.requestUrl, connection)
@@ -100,7 +106,11 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
 
 	if err != nil {
-		log.Warn("No credentials provided")
+		if isConnectionMandatory() {
+			return nil, err
+		} else  {
+			log.Warn("No credentials provided")
+		}
 	}
 
 	res := &plugin.ExecuteActionResponse{ErrorCode: consts.OK}
@@ -154,7 +164,14 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
 
 	if err != nil {
-		log.Warn("No credentials provided")
+		if isConnectionMandatory() {
+			return Result{
+				StatusCode: 0,
+				Body:       nil,
+			}, err
+		} else  {
+			log.Warn("No credentials provided")
+		}
 	}
 
 	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, setCustomHeaders, timeout)
