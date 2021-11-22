@@ -436,15 +436,15 @@ func (suite *PluginTestSuite) TestParseActionParam() {
 
 func (suite *PluginTestSuite) TestIsConnectionMandatory() {
 
-	defer os.Unsetenv("NO_CONNECTION")
+	defer os.Unsetenv("CONNECTION_IS_NOT_MANDATORY")
 
 	// set the env var true
-	os.Setenv("NO_CONNECTION", "true")
+	os.Setenv("CONNECTION_IS_NOT_MANDATORY", "true")
 	assert.False(suite.T(), isConnectionMandatory())
 
 
 	// set the env var false
-	os.Setenv("NO_CONNECTION", "false")
+	os.Setenv("CONNECTION_IS_NOT_MANDATORY", "false")
 	assert.True(suite.T(), isConnectionMandatory())
 
 }
