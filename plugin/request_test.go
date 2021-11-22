@@ -50,7 +50,7 @@ func (suite *PluginTestSuite) TestSetAuthenticationHeaders() {
 		suite.T().Run("test parseActionRequest(): "+tt.name, func(t *testing.T) {
 			connection, err := ctx.GetCredentials("test")
 			require.Nil(t, err)
-			err = setAuthenticationHeaders(connection, tt.args.httpreq, nil, nil, nil)
+			err = setAuthenticationHeaders(connection, tt.args.httpreq, nil, nil)
 			require.Nil(t, err)
 			assert.Contains(t, tt.args.httpreq.Header, "Authorization")
 			splitSlice := strings.Split(tt.args.httpreq.Header["Authorization"][0], " ")

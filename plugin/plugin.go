@@ -28,7 +28,7 @@ type HeaderValuePrefixes map[string]string
 type HeaderAlias map[string]string
 type PathParams []string
 type JSONMap interface{}
-type GetTokenFromCredentials func(map[string]interface{}) (string, error)
+type SetCustomAuthHeaders func(connection map[string]interface{}, request *http.Request) error
 type Result struct {
 	StatusCode int
 	Body       []byte
@@ -63,9 +63,9 @@ type parsedOpenApi struct {
 }
 
 type Callbacks struct {
-	TestCredentialsFunc      func(*plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
-	ValidateResponse         func(Result) (bool, []byte)
-	GetTokenFromCrendentials GetTokenFromCredentials
+	TestCredentialsFunc  func(*plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
+	ValidateResponse     func(Result) (bool, []byte)
+	SetCustomAuthHeaders SetCustomAuthHeaders
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
@@ -125,7 +125,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.callbacks.GetTokenFromCrendentials, request.Timeout)
+	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.callbacks.SetCustomAuthHeaders, request.Timeout)
 
 	res.Result = result.Body
 
@@ -159,7 +159,7 @@ func fixRequestURL(r *http.Request) error {
 }
 
 // ExecuteRequest is used by the 'validate' method in most openapi plugins.
-func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, manipulateCredentials GetTokenFromCredentials) (Result, error) {
+func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, setCustomHeaders SetCustomAuthHeaders) (Result, error) {
 	connection, err := getCredentials(actionContext, providerName)
 	// Remove request url and leave only other authentication headers
 	// We don't want to parse the URL with request params
@@ -175,10 +175,10 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 		}
 	}
 
-	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, manipulateCredentials, timeout)
+	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, setCustomHeaders, timeout)
 }
 
-func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, manipulateCredentials GetTokenFromCredentials, timeout int32) (Result, error) {
+func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, setCustomHeaders SetCustomAuthHeaders, timeout int32) (Result, error) {
 
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
@@ -186,8 +186,12 @@ func executeRequestWithCredentials(connection map[string]interface{}, httpReques
 
 	result := Result{}
 	log.Info(httpRequest.URL)
-	if err := setAuthenticationHeaders(connection, httpRequest, manipulateCredentials, headerValuePrefixes, headerAlias); err != nil {
-
+	if setCustomHeaders != nil {
+		if err := setCustomHeaders(connection, httpRequest); err != nil {
+			log.Error(err)
+			return result, fmt.Errorf("failed to set custom headers: %w", err)
+		}
+	} else if err := setAuthenticationHeaders(connection, httpRequest, headerValuePrefixes, headerAlias); err != nil {
 		log.Error(err)
 		return result, err
 	}
@@ -269,7 +273,7 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 		}
 	}
 
-	if operation.Method == http.MethodPost || operation.Method == http.MethodPut {
+	if operation.Method == http.MethodPost || operation.Method == http.MethodPut || operation.Method == http.MethodPatch {
 		bodyType := operation.GetDefaultBodyType()
 
 		if bodyType != "" {
