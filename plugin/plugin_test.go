@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
@@ -14,8 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-
-	"encoding/json"
+	"os"
 	"testing"
 )
 
@@ -243,7 +243,7 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 						Host: u.Host, Path: u.Path},
 					Header: map[string][]string{"Authorization": {"test1", "test2"}}},
 				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}},
-			wantErr: "",
+			wantErr: "No credentials provided",
 		},
 		{
 			name: "sad path: no such host",
@@ -432,6 +432,21 @@ func (suite *PluginTestSuite) TestParseActionParam() {
 
 	assert.False(suite.T(), actionParam.Required)
 	assert.Equal(suite.T(), actionParam.Description, "dashboard description")
+}
+
+func (suite *PluginTestSuite) TestIsConnectionNeeded() {
+
+	defer os.Unsetenv("NO_CONNECTION")
+
+	// set the env var true
+	os.Setenv("NO_CONNECTION", "true")
+	assert.False(suite.T(), isConnectionNeeded())
+
+
+	// set the env var false
+	os.Setenv("NO_CONNECTION", "false")
+	assert.True(suite.T(), isConnectionNeeded())
+
 }
 
 // In order for 'go test' to run this suite, we need to create
