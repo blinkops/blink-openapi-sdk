@@ -243,7 +243,7 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 						Host: u.Host, Path: u.Path},
 					Header: map[string][]string{"Authorization": {"test1", "test2"}}},
 				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}},
-			wantErr: "No credentials provided",
+			wantErr: "connection with some-bad-provider is missing in action context",
 		},
 		{
 			name: "sad path: no such host",
