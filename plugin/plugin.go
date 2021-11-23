@@ -467,10 +467,6 @@ func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath st
 	for propertyName, bodyProperty := range schema.Properties {
 		fullParamPath := propertyName
 
-		if hasDuplicates(parentPath + consts.BodyParamDelimiter + fullParamPath) {
-			continue
-		}
-
 		// Json params are represented as dot delimited params to allow proper parsing in UI later on
 		if parentPath != "" {
 			fullParamPath = parentPath + consts.BodyParamDelimiter + fullParamPath
@@ -568,19 +564,6 @@ func getParamDefault(defaultValue interface{}, paramType string) string {
 	}
 
 	return paramDefault
-}
-
-func hasDuplicates(path string) bool {
-	paramsArray := strings.Split(path, consts.BodyParamDelimiter)
-	exists := make(map[string]bool)
-	for _, param := range paramsArray {
-		if exists[param] {
-			return true
-		} else {
-			exists[param] = true
-		}
-	}
-	return false
 }
 
 func convertParamType(paramType *string) {
