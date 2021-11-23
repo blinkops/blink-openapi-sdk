@@ -5,8 +5,6 @@ import (
 	"compress/gzip"
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/getkin/kin-openapi/openapi3"
-	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	fp "path/filepath"
@@ -36,46 +34,26 @@ func UnzipFile(filePath string) (err error) {
 	return
 }
 
-// UnzipData gets a byte slice and returns an unzipped slice
-func UnzipData(data []byte) (resData []byte, err error) {
-	// create new buffer from the data slice.
-	dataBuffer := bytes.NewBuffer(data)
-
-	var gzipReader io.Reader
-	// create a gzip reader to read from the data buffer
-	gzipReader, err = gzip.NewReader(dataBuffer)
+// ReadGzipFile returns the unzipped content of the given file.
+func ReadGzipFile(filePath string) ([]byte, error) {
+	// os.open creates a io.reader
+	f, err := os.Open(filePath)
 	if err != nil {
-		return
+		return nil, err
+	}
+
+	r, err := gzip.NewReader(f)
+	if err != nil {
+		return nil, err
 	}
 
 	var resB bytes.Buffer
-	// read the data from the reader into a new buffer
-	_, err = resB.ReadFrom(gzipReader)
-	if err != nil {
-		return
-	}
-
-	// turn the buffer into byte slice
-	resData = resB.Bytes()
-
-	return
-}
-
-// ReadGzipFile reads and unzips the given file.
-func ReadGzipFile(filePath string) ([]byte, error) {
-	// read data from file path
-	content, err := ioutil.ReadFile(filePath)
+	_, err = resB.ReadFrom(r)
 	if err != nil {
 		return nil, err
 	}
 
-	// decompress the data
-	uncompressedData, err := UnzipData(content)
-	if err != nil {
-		return nil, err
-	}
-
-	return uncompressedData, nil
+	return resB.Bytes(), nil
 }
 
 // LoadFromGzipFile is used as replacement for loader.LoadFromFile, but for reading gzipped files.
