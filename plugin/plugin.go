@@ -40,7 +40,6 @@ type openApiPlugin struct {
 	requestUrl          string
 	headerValuePrefixes HeaderValuePrefixes
 	headerAlias         HeaderAlias
-	pathParams          PathParams
 	mask                mask.Mask
 	callbacks           Callbacks
 }
@@ -53,7 +52,6 @@ type PluginMetadata struct {
 	Tags                []string
 	HeaderValuePrefixes HeaderValuePrefixes
 	HeaderAlias         HeaderAlias
-	PathParams          PathParams
 }
 
 type parsedOpenApi struct {
@@ -114,7 +112,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	res := &plugin.ExecuteActionResponse{ErrorCode: consts.OK}
-	openApiRequest, err := p.parseActionRequest(connection, request)
+	openApiRequest, err := p.parseActionRequest(request)
 
 	if err != nil {
 		res.ErrorCode = consts.Error
@@ -222,7 +220,7 @@ func executeRequestWithCredentials(connection map[string]interface{}, httpReques
 	return result, err
 }
 
-func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+func (p *openApiPlugin) parseActionRequest(executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 
 	actionName := executeActionRequest.Name
 
@@ -244,13 +242,6 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 
 	// replace the raw parameters with their alias.
 	requestParameters := p.mask.ReplaceActionParametersAliases(actionName, rawParameters)
-
-	// add to request parameters
-	paramsFromConnection := getPathParamsFromConnection(connection, p.pathParams)
-
-	for k, v := range paramsFromConnection {
-		requestParameters[k] = v
-	}
 
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
 	operationUrl, err := url.Parse(p.requestUrl + requestPath)
@@ -287,18 +278,6 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 	return request, nil
 }
 
-func getPathParamsFromConnection(connection map[string]interface{}, params PathParams) map[string]string {
-	paramsFromConnection := map[string]string{}
-	for header, headerValue := range connection {
-		if headerValueString, ok := headerValue.(string); ok {
-			if StringInSlice(header, params) {
-				paramsFromConnection[header] = headerValueString
-			}
-		}
-	}
-	return paramsFromConnection
-}
-
 func StringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if strings.EqualFold(b, a) {
@@ -333,7 +312,6 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		},
 		headerValuePrefixes: meta.HeaderValuePrefixes,
 		headerAlias:         meta.HeaderAlias,
-		pathParams:          meta.PathParams,
 		mask:                mask,
 		callbacks:           callbacks,
 	}, nil
