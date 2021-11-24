@@ -318,7 +318,6 @@ func (suite *PluginTestSuite) TestParseActionRequest() {
 
 	cns := map[string]*connections.ConnectionInstance{}
 	cns["test"] = &connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}
-	ctx := plugin_sdk.NewActionContext(map[string]interface{}{}, cns)
 
 	// handlers.DefineOperations populates a global variable (OperationDefinitions) that is REQUIRED for this run.
 	// The only convenient option for populating this var is to load an api from file
@@ -359,16 +358,15 @@ func (suite *PluginTestSuite) TestParseActionRequest() {
 	}
 	for _, tt := range tests {
 		suite.T().Run("test parseActionRequest(): "+tt.name, func(t *testing.T) {
-			connection, err := ctx.GetCredentials("test")
 			require.Nil(t, err)
-			httpreq, err := myPlugin.parseActionRequest(connection, tt.args.executeActionRequest)
+			httpReq, err := myPlugin.parseActionRequest(tt.args.executeActionRequest)
 			if tt.wantErr != "" {
 				require.NotNil(t, err, tt.name)
 				assert.Contains(t, err.Error(), tt.wantErr, tt.name)
 			} else {
 				require.NoError(t, err, tt.name)
-				assert.NotNil(t, httpreq.Host)
-				assert.Equal(t, httpreq.Method, "POST")
+				assert.NotNil(t, httpReq.Host)
+				assert.Equal(t, httpReq.Method, "POST")
 			}
 		})
 	}
@@ -413,7 +411,7 @@ func (suite *PluginTestSuite) TestHandleBodyParams() {
 	parentPath := ""
 	action := myPlugin.actions[0]
 
-	handleBodyParams(mask.Mask{}, schema, parentPath, true, &action)
+	handleBodyParams(bodyMetadata{mask.Mask{},"", &action} , schema, parentPath, true, )
 
 	assert.Equal(suite.T(), 13, len(myPlugin.actions[0].Parameters))
 	assert.Contains(suite.T(), myPlugin.actions[0].Parameters, "dashboard.id")

@@ -40,7 +40,6 @@ type openApiPlugin struct {
 	requestUrl          string
 	headerValuePrefixes HeaderValuePrefixes
 	headerAlias         HeaderAlias
-	pathParams          PathParams
 	mask                mask.Mask
 	callbacks           Callbacks
 }
@@ -53,7 +52,12 @@ type PluginMetadata struct {
 	Tags                []string
 	HeaderValuePrefixes HeaderValuePrefixes
 	HeaderAlias         HeaderAlias
-	PathParams          PathParams
+}
+
+type bodyMetadata struct {
+	maskData        mask.Mask
+	schemaPath      string
+	action          *plugin.Action
 }
 
 type parsedOpenApi struct {
@@ -114,7 +118,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 
 	res := &plugin.ExecuteActionResponse{ErrorCode: consts.OK}
-	openApiRequest, err := p.parseActionRequest(connection, request)
+	openApiRequest, err := p.parseActionRequest(request)
 
 	if err != nil {
 		res.ErrorCode = consts.Error
@@ -222,7 +226,7 @@ func executeRequestWithCredentials(connection map[string]interface{}, httpReques
 	return result, err
 }
 
-func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
+func (p *openApiPlugin) parseActionRequest(executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
 
 	actionName := executeActionRequest.Name
 
@@ -244,13 +248,6 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 
 	// replace the raw parameters with their alias.
 	requestParameters := p.mask.ReplaceActionParametersAliases(actionName, rawParameters)
-
-	// add to request parameters
-	paramsFromConnection := getPathParamsFromConnection(connection, p.pathParams)
-
-	for k, v := range paramsFromConnection {
-		requestParameters[k] = v
-	}
 
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
 	operationUrl, err := url.Parse(p.requestUrl + requestPath)
@@ -287,18 +284,6 @@ func (p *openApiPlugin) parseActionRequest(connection map[string]interface{}, ex
 	return request, nil
 }
 
-func getPathParamsFromConnection(connection map[string]interface{}, params PathParams) map[string]string {
-	paramsFromConnection := map[string]string{}
-	for header, headerValue := range connection {
-		if headerValueString, ok := headerValue.(string); ok {
-			if StringInSlice(header, params) {
-				paramsFromConnection[header] = headerValueString
-			}
-		}
-	}
-	return paramsFromConnection
-}
-
 func StringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if strings.EqualFold(b, a) {
@@ -333,7 +318,6 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 		},
 		headerValuePrefixes: meta.HeaderValuePrefixes,
 		headerAlias:         meta.HeaderAlias,
-		pathParams:          meta.PathParams,
 		mask:                mask,
 		callbacks:           callbacks,
 	}, nil
@@ -403,7 +387,8 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, er
 
 		for _, paramBody := range operation.Bodies {
 			if paramBody.DefaultBody {
-				handleBodyParams(maskData, paramBody.Schema.OApiSchema, "", paramBody.Required, &action)
+
+				handleBodyParams(bodyMetadata{maskData, "", &action}, paramBody.Schema.OApiSchema, "", paramBody.Required)
 				break
 			}
 		}
@@ -478,14 +463,18 @@ func areParentsRequired(parentsRequired bool, propertyName string, schema *opena
 	return false
 }
 
-func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath string, parentsRequired bool, action *plugin.Action) {
-	handleBodyParamOfType(maskData, schema, parentPath, parentsRequired, action)
+func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, parentsRequired bool ) {
+	handleBodyParamOfType(metadata, paramSchema, parentPath, parentsRequired)
 
-	for propertyName, bodyProperty := range schema.Properties {
+	for propertyName, bodyProperty := range paramSchema.Properties {
 		fullParamPath := propertyName
 
-		if hasDuplicates(parentPath + consts.BodyParamDelimiter + fullParamPath) {
-			continue
+		if bodyProperty.Ref != "" {
+			index := strings.LastIndex(bodyProperty.Ref, "/") + 1
+			metadata.schemaPath += bodyProperty.Ref[index:] + "."
+			if hasDuplicates(metadata.schemaPath) {
+				continue
+			}
 		}
 
 		// Json params are represented as dot delimited params to allow proper parsing in UI later on
@@ -495,34 +484,34 @@ func handleBodyParams(maskData mask.Mask, schema *openapi3.Schema, parentPath st
 
 		// Keep recursion until leaf node is found
 		if bodyProperty.Value.Properties != nil {
-			handleBodyParams(maskData, bodyProperty.Value, fullParamPath, areParentsRequired(parentsRequired, propertyName, schema), action)
+			handleBodyParams(metadata, bodyProperty.Value, fullParamPath, areParentsRequired(parentsRequired, propertyName, paramSchema))
 		} else {
-			handleBodyParamOfType(maskData, bodyProperty.Value, fullParamPath, parentsRequired, action)
+			handleBodyParamOfType(metadata, bodyProperty.Value, fullParamPath, parentsRequired)
 			isParamRequired := false
 
-			for _, requiredParam := range schema.Required {
+			for _, requiredParam := range paramSchema.Required {
 				if propertyName == requiredParam {
 					isParamRequired = parentsRequired
 					break
 				}
 			}
 
-			if actionParam := parseActionParam(maskData, action.Name, &fullParamPath, bodyProperty, isParamRequired, bodyProperty.Value.Description); actionParam != nil {
-				action.Parameters[fullParamPath] = *actionParam
+			if actionParam := parseActionParam(metadata.maskData, metadata.action.Name, &fullParamPath, bodyProperty, isParamRequired, bodyProperty.Value.Description); actionParam != nil {
+				metadata.action.Parameters[fullParamPath] = *actionParam
 			}
 		}
 	}
 }
 
-func handleBodyParamOfType(maskData mask.Mask, schema *openapi3.Schema, parentPath string, parentsRequired bool, action *plugin.Action) {
-	if schema.AllOf != nil || schema.AnyOf != nil || schema.OneOf != nil {
+func handleBodyParamOfType(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, parentsRequired bool) {
+	if paramSchema.AllOf != nil || paramSchema.AnyOf != nil || paramSchema.OneOf != nil {
 
-		allSchemas := []openapi3.SchemaRefs{schema.AllOf, schema.AnyOf, schema.OneOf}
+		allSchemas := []openapi3.SchemaRefs{paramSchema.AllOf, paramSchema.AnyOf, paramSchema.OneOf}
 
 		// find properties nested in Allof, Anyof, Oneof
 		for _, schemaType := range allSchemas {
 			for _, schemaParams := range schemaType {
-				handleBodyParams(maskData, schemaParams.Value, parentPath, parentsRequired, action)
+				handleBodyParams(metadata, schemaParams.Value, parentPath, parentsRequired)
 			}
 		}
 	}
