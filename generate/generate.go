@@ -1,17 +1,21 @@
 package gen
 
 import (
-	"github.com/blinkops/blink-openapi-sdk/plugin"
-	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
-	"github.com/urfave/cli/v2"
+	"fmt"
 	"html/template"
 	"io"
 	"os"
+	"sort"
 	"strings"
+
+	"github.com/blinkops/blink-openapi-sdk/mask"
+	"github.com/blinkops/blink-openapi-sdk/plugin"
+	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
+	"github.com/urfave/cli/v2"
 )
 
 const (
-	Action = `{{range $action := .GetActions}}
+	Action = `{{range $action := .}}
   {{$action.Name }}:
     alias: {{ actName $action.Name }}
     parameters:{{ range $name, $param := .Parameters}}
@@ -52,40 +56,94 @@ const (
 	README = "README.md"
 )
 
-func GenerateMaskFile(c *cli.Context) error {
-	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
-		Name:        "",
-		MaskFile:    c.String("mask"),
-		OpenApiFile: c.String("file"),
-	}, plugin.Callbacks{})
+// FilterMaskedParameters returns a new action with the same parameters as the masked action.
+func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action) sdkPlugin.Action {
+	newParameters := map[string]sdkPlugin.ActionParameter{}
 
-	if err != nil {
-		return err
+	for parmName := range maskedAct.Parameters {
+		for name, parameter := range act.Parameters {
+			if name == parmName {
+				newParameters[name] = parameter
+			}
+		}
 	}
 
-	f, err := os.Create(c.String("output"))
+	act.Parameters = newParameters
+	return act
+}
+
+func GetMaskedActions(maskFile string, actions []sdkPlugin.Action) ([]sdkPlugin.Action, error) {
+	// mask file was not given
+	if maskFile == "" {
+		return actions, nil
+	}
+
+	m, err := mask.ParseMask(maskFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var newActions []sdkPlugin.Action
+
+	for name, maskedAct := range m.Actions {
+		originalName := m.ReplaceActionAlias(name)
+		for _, act := range actions {
+			if act.Name == originalName {
+				newActions = append(newActions, FilterMaskedParameters(maskedAct, act))
+			}
+		}
+	}
+
+	return newActions, nil
+}
+
+func writeActionsToTemplate(actions []sdkPlugin.Action, outputFileName string) error {
+	sort.SliceStable(actions, func(i, j int) bool {
+		return actions[i].Name < actions[j].Name
+	})
+
+	f, err := os.Create(outputFileName)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	err = runTemplate(f, YAMLTemplate, apiPlugin)
+	err = runTemplate(f, YAMLTemplate, actions)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Generated [%d] actions into [%s]\n", len(actions), outputFileName)
+	return nil
+}
+
+func GenerateMaskFile(c *cli.Context) error {
+	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
+		OpenApiFile: c.String("file"),
+	}, plugin.Callbacks{})
+	if err != nil {
+		return err
+	}
+
+	actions, err := GetMaskedActions(c.String("mask"), apiPlugin.GetActions())
+	if err != nil {
+		return err
+	}
+
+	err = writeActionsToTemplate(actions, c.String("output"))
 	if err != nil {
 		return err
 	}
 
 	return nil
-
 }
 
 func GenerateMarkdown(c *cli.Context) error {
-
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
 		Name:        c.String("name"),
 		MaskFile:    c.String("mask"),
 		OpenApiFile: c.String("file"),
 	}, plugin.Callbacks{})
-
 	if err != nil {
 		return err
 	}
@@ -102,78 +160,77 @@ func GenerateMarkdown(c *cli.Context) error {
 	}
 
 	return nil
-
 }
 
 // GenerateAction appends a single action to mask file.
 func GenerateAction(c *cli.Context) error {
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
-		Name:        "",
-		MaskFile:    "",
 		OpenApiFile: c.String("file"),
 	}, plugin.Callbacks{})
-
 	if err != nil {
 		return err
 	}
 
-	singleAction := SingleAction{
-		operationName: c.String("action"),
-		actions:       apiPlugin.GetActions(),
-	}
-
-	f, err := os.OpenFile(c.String("output"), os.O_APPEND|os.O_WRONLY, 0644)
+	maskedActions, err := GetMaskedActions(c.String("output"), apiPlugin.GetActions())
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	actionName := c.String("action")
+	newAction := FilterActionsByOperationName(actionName, apiPlugin.GetActions())
+	fmt.Printf("Adding %s...\n", actionName)
 
-	err = runTemplate(f, Action, singleAction)
+	err = writeActionsToTemplate(replaceOldActionWithNew(maskedActions, newAction), c.String("output"))
 	if err != nil {
 		return err
 	}
 
 	return nil
-
 }
 
-type SingleAction struct {
-	operationName string
-	actions       []sdkPlugin.Action
-}
+// replaceOldActionWithNew filters out the old action from the actions slice, and adds the newAction to the end.
+func replaceOldActionWithNew(actions []sdkPlugin.Action, newAction []sdkPlugin.Action) []sdkPlugin.Action {
+	var NewArray []sdkPlugin.Action
 
-func (c SingleAction) GetActions() []sdkPlugin.Action {
-
-	// filter according to operationName
-	var actions []sdkPlugin.Action
-
-	for _, action := range c.actions {
-		if action.Name == c.operationName {
-			actions = append(actions, action)
+	for _, act := range actions {
+		if act.Name != newAction[0].Name {
+			NewArray = append(NewArray, act)
 		}
 	}
 
-	return actions
+	NewArray = append(NewArray, newAction[0])
+
+	return NewArray
+}
+
+func FilterActionsByOperationName(operationName string, actions []sdkPlugin.Action) []sdkPlugin.Action {
+	var filteredActions []sdkPlugin.Action
+
+	for _, action := range actions {
+		if action.Name == operationName {
+			filteredActions = append(filteredActions, action)
+		}
+	}
+
+	return filteredActions
 }
 
 func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
 	indexMap := map[string]int{}
 
 	genAlias := func(str string) string {
-		uppercaseWords := []string{"url", "id", "ip", "ssl"}
-
 		// replace _ with ' '
-
 		str = strings.ReplaceAll(str, "_", " ")
-		str = strings.ReplaceAll(str, ".", "_")
+		str = strings.ReplaceAll(str, ".", " ")
+		str = strings.ReplaceAll(str, "[]", "")
 		// iter over words in the string
 		for _, word := range strings.Split(str, " ") {
-
+			upperCaseWords := []string{"url", "id", "ids", "ip", "ssl"}
 			// check if the word is in out list.
-			if plugin.StringInSlice(word, uppercaseWords) {
+			if plugin.StringInSlice(word, upperCaseWords) {
 				str = strings.ReplaceAll(str, word, strings.ToUpper(word))
 			}
 		}
+		str = strings.ReplaceAll(str, "IDS", "IDs")
 
 		return strings.Join(strings.Fields(strings.Title(str)), " ")
 	}
@@ -201,7 +258,6 @@ func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
 	}
 
 	tmpl, err := template.New("").Funcs(funcs).Parse(templateStr)
-
 	if err != nil {
 		return err
 	}

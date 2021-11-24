@@ -1,0 +1,22 @@
+project_name: blink-cli
+builds:
+  - env: [CGO_ENABLED=0]
+    main: ./cmd/openapi-cli
+
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
