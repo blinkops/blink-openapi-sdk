@@ -3,11 +3,12 @@ package zip
 import (
 	"bytes"
 	"compress/gzip"
-	"github.com/blinkops/blink-openapi-sdk/consts"
-	"github.com/getkin/kin-openapi/openapi3"
 	"net/url"
 	"os"
 	fp "path/filepath"
+
+	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/getkin/kin-openapi/openapi3"
 )
 
 // UnzipFile unzips the file and saves to disk.
@@ -42,10 +43,14 @@ func ReadGzipFile(filePath string) ([]byte, error) {
 		return nil, err
 	}
 
+	defer f.Close()
+
 	r, err := gzip.NewReader(f)
 	if err != nil {
 		return nil, err
 	}
+
+	defer r.Close()
 
 	var resB bytes.Buffer
 	_, err = resB.ReadFrom(r)
