@@ -1,6 +1,7 @@
 name: build
 on: push
-
+  tags-ignore:
+    - v1.*
 jobs:
   generate:
     runs-on: ubuntu-latest
