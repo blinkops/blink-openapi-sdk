@@ -10,13 +10,6 @@ builds:
     goarch:
       - amd64
       - arm64
-brews:
-  - tap:
-      owner: blinkops
-      name: blink-openapi-sdk
-    homepage: https://www.blinkops.com/
-    license: "MIT"
-    description: "Awesome CLI for the blink ops platform"
 checksum:
   name_template: 'checksums.txt'
 snapshot:
