@@ -411,7 +411,7 @@ func (suite *PluginTestSuite) TestHandleBodyParams() {
 	parentPath := ""
 	action := myPlugin.actions[0]
 
-	handleBodyParams(mask.Mask{}, schema, parentPath, true, &action)
+	handleBodyParams(bodyMetadata{mask.Mask{},"", &action} , schema, parentPath, true, )
 
 	assert.Equal(suite.T(), 13, len(myPlugin.actions[0].Parameters))
 	assert.Contains(suite.T(), myPlugin.actions[0].Parameters, "dashboard.id")
