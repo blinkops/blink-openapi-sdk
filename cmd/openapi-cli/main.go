@@ -1,12 +1,13 @@
 package main
 
 import (
+	"fmt"
+	"github.com/pkg/errors"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/blinkops/blink-openapi-sdk/generate"
-	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
 
@@ -30,13 +31,14 @@ func getOpenapiDefaultFile() (string, error) {
 		}
 	}
 
-	return "", nil
+	return "", errors.New("Could not find an openAPI file in this directory.\n(for the file to be automagically detected use this pattern [.*-openapi.yaml])")
 }
 
 func main() {
 	OpenAPIFile, err := getOpenapiDefaultFile()
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	app := &cli.App{
@@ -90,10 +92,28 @@ func main() {
 							},
 							&cli.StringFlag{
 								Name:        "output",
-								Aliases:     []string{"o"},
+								Aliases:     []string{"o", "out"},
 								Value:       "mask.yaml",
 								Usage:       "name of the output mask file",
 								DefaultText: "mask.yaml",
+							},
+							&cli.StringSliceFlag{
+								Name:    "blacklist-params",
+								Aliases: []string{"exclude", "param-blacklist"},
+								Usage:   "parameters you don't wish to generate across all actions.",
+							},
+							&cli.BoolFlag{
+								Name:        "no-warnings",
+								Value:       false,
+								Usage:       "dont get warning messages",
+								DefaultText: "false",
+							},
+
+							&cli.BoolFlag{
+								Name:        "filterParameters",
+								Usage:       "set to false if you dont wish to keep the original mask parameters",
+								Value:       true,
+								DefaultText: "true",
 							},
 						},
 						Name:    "mask",
@@ -105,10 +125,10 @@ func main() {
 						Flags: []cli.Flag{
 							&cli.StringFlag{
 								Required:    true,
-								Name:        "action",
-								Aliases:     []string{"act"},
+								Name:        "name",
+								Aliases:     []string{"act", "action-name"},
 								Value:       "",
-								Usage:       "name of the action you want to generate",
+								Usage:       "The operation ID of the action you want to generate (from the openAPI file).",
 								DefaultText: "",
 							},
 							&cli.StringFlag{
@@ -119,10 +139,15 @@ func main() {
 							},
 							&cli.StringFlag{
 								Name:        "output",
-								Aliases:     []string{"o"},
+								Aliases:     []string{"o", "out"},
 								Value:       "mask.yaml",
 								Usage:       "name of the output mask file",
 								DefaultText: "mask.yaml",
+							},
+							&cli.StringSliceFlag{
+								Name:    "blacklist-params",
+								Aliases: []string{"exclude", "param-blacklist"},
+								Usage:   "parameters you don't wish to generate.",
 							},
 						},
 						Name:    "action",
@@ -136,6 +161,7 @@ func main() {
 	}
 
 	if err = app.Run(os.Args); err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }

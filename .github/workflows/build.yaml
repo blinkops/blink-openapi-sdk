@@ -1,7 +1,10 @@
 name: build
-on: push
-  tags-ignore:
-    - v1.*
+on:
+  push:
+    branches-ignore:
+      - '*/*'
+    tags-ignore:
+      - v1.*
 jobs:
   generate:
     runs-on: ubuntu-latest
