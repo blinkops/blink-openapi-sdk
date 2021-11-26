@@ -2,16 +2,17 @@ package gen
 
 import (
 	"fmt"
+	"github.com/Songmu/prompter"
+	"github.com/blinkops/blink-openapi-sdk/mask"
+	"github.com/blinkops/blink-openapi-sdk/plugin"
+	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
+	"github.com/pkg/errors"
+	"github.com/urfave/cli/v2"
 	"html/template"
 	"io"
 	"os"
 	"sort"
 	"strings"
-
-	"github.com/blinkops/blink-openapi-sdk/mask"
-	"github.com/blinkops/blink-openapi-sdk/plugin"
-	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
-	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -56,23 +57,45 @@ const (
 	README = "README.md"
 )
 
+func StringInSlice(name string, array []string) bool {
+	for _, elm := range array {
+		if elm == name {
+			return true
+		}
+	}
+	return false
+}
+
 // FilterMaskedParameters returns a new action with the same parameters as the masked action.
-func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action) sdkPlugin.Action {
+func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, filterParameters bool) sdkPlugin.Action {
+	if !filterParameters {
+		return act
+	}
+
 	newParameters := map[string]sdkPlugin.ActionParameter{}
 
 	for parmName := range maskedAct.Parameters {
 		for name, parameter := range act.Parameters {
-			if name == parmName {
+			if name == parmName { // if the action name is also in the mask file.
 				newParameters[name] = parameter
 			}
 		}
 	}
-
 	act.Parameters = newParameters
 	return act
 }
 
-func GetMaskedActions(maskFile string, actions []sdkPlugin.Action) ([]sdkPlugin.Action, error) {
+func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistParams []string, filterParameters bool) ([]sdkPlugin.Action, error) {
+	if len(blacklistParams) > 0 {
+		for _, action := range actions {
+			for paramName := range action.Parameters {
+				if StringInSlice(paramName, blacklistParams) {
+					delete(action.Parameters, paramName)
+				}
+			}
+		}
+	}
+
 	// mask file was not given
 	if maskFile == "" {
 		return actions, nil
@@ -89,7 +112,7 @@ func GetMaskedActions(maskFile string, actions []sdkPlugin.Action) ([]sdkPlugin.
 		originalName := m.ReplaceActionAlias(name)
 		for _, act := range actions {
 			if act.Name == originalName {
-				newActions = append(newActions, FilterMaskedParameters(maskedAct, act))
+				newActions = append(newActions, FilterMaskedParameters(maskedAct, act, filterParameters))
 			}
 		}
 	}
@@ -113,7 +136,6 @@ func writeActionsToTemplate(actions []sdkPlugin.Action, outputFileName string) e
 		return err
 	}
 
-	fmt.Printf("Generated [%d] actions into [%s]\n", len(actions), outputFileName)
 	return nil
 }
 
@@ -125,12 +147,24 @@ func GenerateMaskFile(c *cli.Context) error {
 		return err
 	}
 
-	actions, err := GetMaskedActions(c.String("mask"), apiPlugin.GetActions())
+	actions, err := GetMaskedActions(c.String("mask"), apiPlugin.GetActions(), c.StringSlice("blacklist-params"), c.Bool("filterParameters"))
 	if err != nil {
 		return err
 	}
 
-	err = writeActionsToTemplate(actions, c.String("output"))
+	if !c.Bool("no-warnings") { // user wants warnings
+		a := fmt.Sprintf("You are about to generate [%d] actions \n with blacklist of [%#v] use mask original mask parameters [%#v] \n with are you sure?\n", len(actions), c.StringSlice("blacklist-params"), c.Bool("filterParameters"))
+
+		if !prompter.YN(a, true) { // warn the user
+			return errors.New("user quit")
+		}
+	}
+
+	outputFileName := c.String("output")
+
+	fmt.Printf("Generated [%d] actions into [%s]\n", len(actions), outputFileName)
+
+	err = writeActionsToTemplate(actions, outputFileName)
 	if err != nil {
 		return err
 	}
@@ -171,19 +205,29 @@ func GenerateAction(c *cli.Context) error {
 		return err
 	}
 
-	maskedActions, err := GetMaskedActions(c.String("output"), apiPlugin.GetActions())
+	maskedActions, err := GetMaskedActions(c.String("output"), apiPlugin.GetActions(), c.StringSlice("blacklist-params"), true)
 	if err != nil {
 		return err
 	}
-	actionName := c.String("action")
+	actionName := c.String("name")
 	newAction := FilterActionsByOperationName(actionName, apiPlugin.GetActions())
+
+	if len(newAction) == 0 {
+		return errors.New("no such action")
+	}
+
 	fmt.Printf("Adding %s...\n", actionName)
 
-	err = writeActionsToTemplate(replaceOldActionWithNew(maskedActions, newAction), c.String("output"))
+	outputFileName := c.String("output")
+
+	actions := replaceOldActionWithNew(maskedActions, newAction)
+
+	err = writeActionsToTemplate(actions, outputFileName)
 	if err != nil {
 		return err
 	}
 
+	fmt.Printf("Generated [%s] into [%s]\n", actionName, outputFileName)
 	return nil
 }
 
@@ -215,6 +259,7 @@ func FilterActionsByOperationName(operationName string, actions []sdkPlugin.Acti
 }
 
 func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
+	upperCaseWords := []string{"url", "id", "ids", "ip", "ssl"}
 	indexMap := map[string]int{}
 
 	genAlias := func(str string) string {
@@ -223,13 +268,17 @@ func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
 		str = strings.ReplaceAll(str, ".", " ")
 		str = strings.ReplaceAll(str, "[]", "")
 		// iter over words in the string
-		for _, word := range strings.Split(str, " ") {
-			upperCaseWords := []string{"url", "id", "ids", "ip", "ssl"}
+
+		words := strings.Split(str, " ")
+
+		for i, word := range words {
 			// check if the word is in out list.
 			if plugin.StringInSlice(word, upperCaseWords) {
-				str = strings.ReplaceAll(str, word, strings.ToUpper(word))
+				words[i] = strings.ToUpper(word)
 			}
 		}
+
+		str = strings.Join(words, " ")
 		str = strings.ReplaceAll(str, "IDS", "IDs")
 
 		return strings.Join(strings.Fields(strings.Title(str)), " ")
