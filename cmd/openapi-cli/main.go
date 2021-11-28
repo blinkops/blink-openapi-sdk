@@ -1,15 +1,47 @@
 package main
 
 import (
-	"github.com/blinkops/blink-openapi-sdk/generate"
-	log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
+	"fmt"
+	"github.com/pkg/errors"
 	"os"
+	"regexp"
+	"strings"
+
+	"github.com/blinkops/blink-openapi-sdk/generate"
+	"github.com/urfave/cli/v2"
 )
 
-func main() {
-	app := &cli.App{
+func getOpenapiDefaultFile() (string, error) {
+	file, err := os.Open("./")
+	if err != nil {
+		return "", err
+	}
 
+	defer file.Close()
+
+	names, err := file.Readdirnames(0)
+	if err != nil {
+		return "", err
+	}
+
+	re := regexp.MustCompile(`.*-openapi.yaml`)
+	for _, name := range names {
+		if val := re.Find([]byte(name)); val != nil {
+			return string(val), nil
+		}
+	}
+
+	return "", errors.New("Could not find an openAPI file in this directory.\n(for the file to be automagically detected use this pattern [.*-openapi.yaml])")
+}
+
+func main() {
+	OpenAPIFile, err := getOpenapiDefaultFile()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	app := &cli.App{
 		Commands: []*cli.Command{
 			{
 				Name:    "generate",
@@ -19,18 +51,16 @@ func main() {
 					{
 						Flags: []cli.Flag{
 							&cli.StringFlag{
-								Name:     "file",
-								Aliases:  []string{"f"},
-								Value:    "",
-								Usage:    "openApi file",
-								Required: true,
+								Name:    "file",
+								Aliases: []string{"f"},
+								Value:   OpenAPIFile,
+								Usage:   "openApi file",
 							},
 							&cli.StringFlag{
-								Name:     "name",
-								Aliases:  []string{"n"},
-								Value:    "",
-								Usage:    "plugin name",
-								Required: true,
+								Name:    "name",
+								Aliases: []string{"n"},
+								Value:   strings.Split(OpenAPIFile, "-")[0],
+								Usage:   "plugin name",
 							},
 							&cli.StringFlag{
 								Name:        "mask",
@@ -48,25 +78,42 @@ func main() {
 					{
 						Flags: []cli.Flag{
 							&cli.StringFlag{
-								Name:     "file",
-								Aliases:  []string{"f"},
-								Value:    "",
-								Usage:    "openApi file name",
-								Required: true,
+								Name:    "file",
+								Aliases: []string{"f"},
+								Value:   OpenAPIFile,
+								Usage:   "openApi file name",
 							},
 							&cli.StringFlag{
 								Name:        "mask",
 								Aliases:     []string{"m"},
-								Value:       "mask.yaml",
+								Value:       "",
 								Usage:       "mask file to regenerate a mask from",
 								DefaultText: "",
 							},
 							&cli.StringFlag{
 								Name:        "output",
-								Aliases:     []string{"o"},
+								Aliases:     []string{"o", "out"},
 								Value:       "mask.yaml",
 								Usage:       "name of the output mask file",
 								DefaultText: "mask.yaml",
+							},
+							&cli.StringSliceFlag{
+								Name:    "blacklist-params",
+								Aliases: []string{"exclude", "param-blacklist"},
+								Usage:   "parameters you don't wish to generate across all actions.",
+							},
+							&cli.BoolFlag{
+								Name:        "no-warnings",
+								Value:       false,
+								Usage:       "dont get warning messages",
+								DefaultText: "false",
+							},
+
+							&cli.BoolFlag{
+								Name:        "filterParameters",
+								Usage:       "set to false if you dont wish to keep the original mask parameters",
+								Value:       true,
+								DefaultText: "true",
 							},
 						},
 						Name:    "mask",
@@ -77,25 +124,30 @@ func main() {
 					{
 						Flags: []cli.Flag{
 							&cli.StringFlag{
-								Name:        "action",
-								Aliases:     []string{"act"},
+								Required:    true,
+								Name:        "name",
+								Aliases:     []string{"act", "action-name"},
 								Value:       "",
-								Usage:       "name of the action you want to generate",
+								Usage:       "The operation ID of the action you want to generate (from the openAPI file).",
 								DefaultText: "",
 							},
 							&cli.StringFlag{
-								Name:     "file",
-								Aliases:  []string{"f"},
-								Value:    "",
-								Usage:    "openApi file name",
-								Required: true,
+								Name:    "file",
+								Aliases: []string{"f"},
+								Value:   OpenAPIFile,
+								Usage:   "openApi file name",
 							},
 							&cli.StringFlag{
 								Name:        "output",
-								Aliases:     []string{"o"},
+								Aliases:     []string{"o", "out"},
 								Value:       "mask.yaml",
 								Usage:       "name of the output mask file",
 								DefaultText: "mask.yaml",
+							},
+							&cli.StringSliceFlag{
+								Name:    "blacklist-params",
+								Aliases: []string{"exclude", "param-blacklist"},
+								Usage:   "parameters you don't wish to generate.",
 							},
 						},
 						Name:    "action",
@@ -108,9 +160,8 @@ func main() {
 		},
 	}
 
-	err := app.Run(os.Args)
-	if err != nil {
-		log.Fatal(err)
+	if err = app.Run(os.Args); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
-
 }

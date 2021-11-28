@@ -41,11 +41,13 @@ func ReadGzipFile(filePath string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	r, err := gzip.NewReader(f)
 	if err != nil {
 		return nil, err
 	}
+	defer r.Close()
 
 	var resB bytes.Buffer
 	_, err = resB.ReadFrom(r)
