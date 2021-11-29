@@ -2,9 +2,7 @@ package handlers
 
 import "github.com/getkin/kin-openapi/openapi3"
 
-var (
-	OperationDefinitions = map[string]*OperationDefinition{}
-)
+var OperationDefinitions = map[string]*OperationDefinition{}
 
 // OperationDefinition This structure describes an Operation
 type OperationDefinition struct {

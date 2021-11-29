@@ -2,15 +2,16 @@ package plugin
 
 import (
 	"encoding/base64"
-	plugin_sdk "github.com/blinkops/blink-sdk/plugin"
-	"github.com/blinkops/blink-sdk/plugin/connections"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	plugin_sdk "github.com/blinkops/blink-sdk/plugin"
+	"github.com/blinkops/blink-sdk/plugin/connections"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func (suite *PluginTestSuite) TestSetAuthenticationHeaders() {
@@ -40,10 +41,14 @@ func (suite *PluginTestSuite) TestSetAuthenticationHeaders() {
 	}{
 		{
 			name: "happy path",
-			args: args{httpreq: &http.Request{Method: "POST",
-				URL: &url.URL{Scheme: "http",
-					Host: u.Host, Path: u.Path},
-				Header: map[string][]string{}}},
+			args: args{httpreq: &http.Request{
+				Method: "POST",
+				URL: &url.URL{
+					Scheme: "http",
+					Host:   u.Host, Path: u.Path,
+				},
+				Header: map[string][]string{},
+			}},
 		},
 	}
 	for _, tt := range tests {

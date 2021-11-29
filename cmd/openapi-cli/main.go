@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/pkg/errors"
 
 	"github.com/blinkops/blink-openapi-sdk/generate"
 	"github.com/urfave/cli/v2"

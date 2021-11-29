@@ -2,17 +2,18 @@ package gen
 
 import (
 	"fmt"
+	"html/template"
+	"io"
+	"os"
+	"sort"
+	"strings"
+
 	"github.com/Songmu/prompter"
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin"
 	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
-	"html/template"
-	"io"
-	"os"
-	"sort"
-	"strings"
 )
 
 const (

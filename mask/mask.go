@@ -1,21 +1,20 @@
 package mask
 
 import (
+	"io/ioutil"
+	"os"
+
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/zip"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
-	"io/ioutil"
-	"os"
 )
 
 const (
 	FormatDelimiter = "_"
 )
 
-var (
-	FormatPrefixes = [...]string{"date"}
-)
+var FormatPrefixes = [...]string{"date"}
 
 type (
 	Mask struct {
