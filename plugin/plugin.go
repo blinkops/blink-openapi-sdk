@@ -55,9 +55,9 @@ type PluginMetadata struct {
 }
 
 type bodyMetadata struct {
-	maskData        mask.Mask
-	schemaPath      string
-	action          *plugin.Action
+	maskData   mask.Mask
+	schemaPath string
+	action     *plugin.Action
 }
 
 type parsedOpenApi struct {
@@ -112,7 +112,7 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	if err != nil {
 		if isConnectionMandatory() {
 			return nil, err
-		} else  {
+		} else {
 			log.Warn("No credentials provided")
 		}
 	}
@@ -136,13 +136,9 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	// if no validate response function was passed no response check will occur.
-	if p.callbacks.ValidateResponse != nil && len(result.Body) > 0 {
-
-		if valid, msg := p.callbacks.ValidateResponse(result); !valid {
-			res.ErrorCode = consts.Error
-			res.Result = msg
-		}
+	if valid, msg := p.callbacks.ValidateResponse(result); !valid {
+		res.ErrorCode = consts.Error
+		res.Result = msg
 	}
 
 	return res, nil
@@ -173,7 +169,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 				StatusCode: 0,
 				Body:       nil,
 			}, err
-		} else  {
+		} else {
 			log.Warn("No credentials provided")
 		}
 	}
@@ -304,6 +300,11 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 	parsedFile, err := parseOpenApiFile(mask, meta.OpenApiFile)
 	if err != nil {
 		return nil, err
+	}
+
+	// if no validate function was passed, the default one will be used
+	if callbacks.ValidateResponse == nil {
+		callbacks.ValidateResponse = ValidateDefault
 	}
 
 	return &openApiPlugin{
@@ -463,7 +464,7 @@ func areParentsRequired(parentsRequired bool, propertyName string, schema *opena
 	return false
 }
 
-func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, parentsRequired bool ) {
+func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, parentsRequired bool) {
 	handleBodyParamOfType(metadata, paramSchema, parentPath, parentsRequired)
 
 	for propertyName, bodyProperty := range paramSchema.Properties {
@@ -697,4 +698,13 @@ func GetRequestUrl(actionContext *plugin.ActionContext, provider string) (string
 	} else {
 		return getRequestUrlFromConnection("", connection), nil
 	}
+}
+
+func ValidateDefault(response Result) (bool, []byte) {
+
+	if response.StatusCode >= 200 && response.StatusCode <= 299 {
+		return true, nil
+	}
+	return false, response.Body
+
 }
