@@ -2,16 +2,15 @@ package handlers
 
 import (
 	"fmt"
-	"github.com/blinkops/blink-openapi-sdk/consts"
-	"github.com/getkin/kin-openapi/openapi3"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/getkin/kin-openapi/openapi3"
 )
 
-var (
-	pathParamRE = regexp.MustCompile(`{[.;?]?([^{}*]+)\\*?}`)
-)
+var pathParamRE = regexp.MustCompile(`{[.;?]?([^{}*]+)\\*?}`)
 
 // DefineOperations returns all operations for an openApi definition.
 func DefineOperations(openApi *openapi3.T) error {
@@ -86,7 +85,6 @@ func DefineOperations(openApi *openapi3.T) error {
 				// They are the default securityPermissions which are injected into each
 				// path, except for the case where a path explicitly overrides them.
 				opDef.SecurityDefinitions = describeSecurityDefinition(openApi.Security)
-
 			}
 
 			if op.RequestBody != nil {

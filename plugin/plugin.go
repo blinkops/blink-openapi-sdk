@@ -4,15 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/blinkops/blink-openapi-sdk/consts"
-	"github.com/blinkops/blink-openapi-sdk/mask"
-	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
-	"github.com/blinkops/blink-openapi-sdk/zip"
-	"github.com/blinkops/blink-sdk/plugin"
-	"github.com/blinkops/blink-sdk/plugin/connections"
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -22,17 +13,29 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/blinkops/blink-openapi-sdk/mask"
+	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
+	"github.com/blinkops/blink-openapi-sdk/zip"
+	"github.com/blinkops/blink-sdk/plugin"
+	"github.com/blinkops/blink-sdk/plugin/connections"
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
-type HeaderValuePrefixes map[string]string
-type HeaderAlias map[string]string
-type PathParams []string
-type JSONMap interface{}
-type SetCustomAuthHeaders func(connection map[string]interface{}, request *http.Request) error
-type Result struct {
-	StatusCode int
-	Body       []byte
-}
+type (
+	HeaderValuePrefixes  map[string]string
+	HeaderAlias          map[string]string
+	PathParams           []string
+	JSONMap              interface{}
+	SetCustomAuthHeaders func(connection map[string]interface{}, request *http.Request) error
+	Result               struct {
+		StatusCode int
+		Body       []byte
+	}
+)
 
 type openApiPlugin struct {
 	actions             []plugin.Action
@@ -55,9 +58,9 @@ type PluginMetadata struct {
 }
 
 type bodyMetadata struct {
-	maskData        mask.Mask
-	schemaPath      string
-	action          *plugin.Action
+	maskData   mask.Mask
+	schemaPath string
+	action     *plugin.Action
 }
 
 type parsedOpenApi struct {
@@ -87,7 +90,6 @@ func (p *openApiPlugin) TestCredentials(conn map[string]*connections.ConnectionI
 }
 
 func (p *openApiPlugin) actionExist(actionName string) bool {
-
 	for _, val := range p.actions {
 		if val.Name == actionName {
 			return true
@@ -112,14 +114,13 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	if err != nil {
 		if isConnectionMandatory() {
 			return nil, err
-		} else  {
+		} else {
 			log.Warn("No credentials provided")
 		}
 	}
 
 	res := &plugin.ExecuteActionResponse{ErrorCode: consts.OK}
 	openApiRequest, err := p.parseActionRequest(request)
-
 	if err != nil {
 		res.ErrorCode = consts.Error
 		res.Result = []byte(err.Error())
@@ -136,20 +137,15 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	// if no validate response function was passed no response check will occur.
-	if p.callbacks.ValidateResponse != nil && len(result.Body) > 0 {
-
-		if valid, msg := p.callbacks.ValidateResponse(result); !valid {
-			res.ErrorCode = consts.Error
-			res.Result = msg
-		}
+	if valid, msg := p.callbacks.ValidateResponse(result); !valid {
+		res.ErrorCode = consts.Error
+		res.Result = msg
 	}
 
 	return res, nil
 }
 
 func fixRequestURL(r *http.Request) error {
-
 	if r.URL.Scheme == "" {
 		r.URL.Scheme = "https"
 	}
@@ -173,7 +169,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 				StatusCode: 0,
 				Body:       nil,
 			}, err
-		} else  {
+		} else {
 			log.Warn("No credentials provided")
 		}
 	}
@@ -182,7 +178,6 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 }
 
 func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, setCustomHeaders SetCustomAuthHeaders, timeout int32) (Result, error) {
-
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}
@@ -205,7 +200,6 @@ func executeRequestWithCredentials(connection map[string]interface{}, httpReques
 	}
 
 	response, err := client.Do(httpRequest)
-
 	if err != nil {
 		log.Error(err)
 		return result, err
@@ -227,7 +221,6 @@ func executeRequestWithCredentials(connection map[string]interface{}, httpReques
 }
 
 func (p *openApiPlugin) parseActionRequest(executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
-
 	actionName := executeActionRequest.Name
 
 	if !p.actionExist(actionName) {
@@ -241,7 +234,6 @@ func (p *openApiPlugin) parseActionRequest(executeActionRequest *plugin.ExecuteA
 
 	// get the parameters from the request.
 	rawParameters, err := executeActionRequest.GetParameters()
-
 	if err != nil {
 		return nil, err
 	}
@@ -251,13 +243,11 @@ func (p *openApiPlugin) parseActionRequest(executeActionRequest *plugin.ExecuteA
 
 	requestPath := parsePathParams(requestParameters, operation, operation.Path)
 	operationUrl, err := url.Parse(p.requestUrl + requestPath)
-
 	if err != nil {
 		return nil, err
 	}
 
 	request, err := http.NewRequest(operation.Method, operationUrl.String(), nil)
-
 	if err != nil {
 		return nil, err
 	}
@@ -294,9 +284,7 @@ func StringInSlice(a string, list []string) bool {
 }
 
 func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, callbacks Callbacks) (*openApiPlugin, error) {
-
 	mask, err := mask.ParseMask(meta.MaskFile)
-
 	if err != nil {
 		return nil, errors.Errorf("Cannot parse mask file: %s", meta.MaskFile)
 	}
@@ -304,6 +292,11 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 	parsedFile, err := parseOpenApiFile(mask, meta.OpenApiFile)
 	if err != nil {
 		return nil, err
+	}
+
+	// if no validate function was passed, the default one will be used
+	if callbacks.ValidateResponse == nil {
+		callbacks.ValidateResponse = validateDefault
 	}
 
 	return &openApiPlugin{
@@ -327,7 +320,6 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, er
 	var actions []plugin.Action
 
 	openApi, err := loadOpenApi(OpenApiFile)
-
 	if err != nil {
 		return parsedOpenApi{}, err
 	}
@@ -406,7 +398,6 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, er
 		requestUrl:  requestUrl,
 		actions:     actions,
 	}, nil
-
 }
 
 func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
@@ -423,7 +414,6 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 		for {
 			// when running in prod the openAPI file is gzipped
 			parsed, err := zip.LoadFromGzipFile(loader, filePath+consts.GzipFile)
-
 			if err != nil {
 				// loadFromGzipFile failed because it couldn't find a ref file
 				// because the ref file is also gzipped.
@@ -442,11 +432,9 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 
 			return parsed, nil
 		}
-
 	}
 	// normal yaml
 	return loader.LoadFromFile(filePath)
-
 }
 
 func areParentsRequired(parentsRequired bool, propertyName string, schema *openapi3.Schema) bool {
@@ -463,7 +451,7 @@ func areParentsRequired(parentsRequired bool, propertyName string, schema *opena
 	return false
 }
 
-func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, parentsRequired bool ) {
+func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, parentsRequired bool) {
 	handleBodyParamOfType(metadata, paramSchema, parentPath, parentsRequired)
 
 	for propertyName, bodyProperty := range paramSchema.Properties {
@@ -599,7 +587,6 @@ func convertParamType(paramType *string) {
 }
 
 func parseActionParam(maskData mask.Mask, actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool, paramDescription string) *plugin.ActionParameter {
-
 	var (
 		isMulti    bool
 		paramIndex int64
@@ -697,4 +684,11 @@ func GetRequestUrl(actionContext *plugin.ActionContext, provider string) (string
 	} else {
 		return getRequestUrlFromConnection("", connection), nil
 	}
+}
+
+func validateDefault(response Result) (bool, []byte) {
+	if response.StatusCode >= 200 && response.StatusCode <= 299 {
+		return true, nil
+	}
+	return false, response.Body
 }

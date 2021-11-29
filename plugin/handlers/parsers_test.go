@@ -2,14 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"net/url"
+	"testing"
+
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"net/url"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/stretchr/testify/assert"
-
-	"testing"
 )
 
 var paramDefinitionTestData []parameterDefinition
@@ -104,23 +104,25 @@ func (suite *ParsersTestSuite) TestSortedPathKeys() {
 	}{
 		{
 			name: "unsorted path keys",
-			args: args{pathKeys: openapi3.Paths{
-				"/api/dashboards/db":   nil,
-				"/api/wallak/aaa":      nil,
-				"/api/test/bbb":        nil,
-				"/api/api/api/api/bbb": nil,
-			},
+			args: args{
+				pathKeys: openapi3.Paths{
+					"/api/dashboards/db":   nil,
+					"/api/wallak/aaa":      nil,
+					"/api/test/bbb":        nil,
+					"/api/api/api/api/bbb": nil,
+				},
 			},
 			output: []string{"/api/api/api/api/bbb", "/api/dashboards/db", "/api/test/bbb", "/api/wallak/aaa"},
 		},
 		{
 			name: "already sorted path keys",
-			args: args{pathKeys: openapi3.Paths{
-				"/api/api/api/api/bbb": nil,
-				"/api/dashboards/db":   nil,
-				"/api/test/bbb":        nil,
-				"/api/wallak/aaa":      nil,
-			},
+			args: args{
+				pathKeys: openapi3.Paths{
+					"/api/api/api/api/bbb": nil,
+					"/api/dashboards/db":   nil,
+					"/api/test/bbb":        nil,
+					"/api/wallak/aaa":      nil,
+				},
 			},
 			output: []string{"/api/api/api/api/bbb", "/api/dashboards/db", "/api/test/bbb", "/api/wallak/aaa"},
 		},
@@ -148,24 +150,25 @@ func (suite *ParsersTestSuite) TestDescribeParameters() {
 	}{
 		{
 			name: "Parameters to describe",
-			args: args{params: openapi3.Parameters{
-				&openapi3.ParameterRef{
-					Ref: "wallak",
-					Value: &openapi3.Parameter{
-						Name:        "teamId",
-						In:          "path",
-						Description: "some-desc",
-						Required:    true,
-						Schema: &openapi3.SchemaRef{
-							Ref: "wa",
-							Value: &openapi3.Schema{
-								Format: "int64",
-								Type:   "integer",
+			args: args{
+				params: openapi3.Parameters{
+					&openapi3.ParameterRef{
+						Ref: "wallak",
+						Value: &openapi3.Parameter{
+							Name:        "teamId",
+							In:          "path",
+							Description: "some-desc",
+							Required:    true,
+							Schema: &openapi3.SchemaRef{
+								Ref: "wa",
+								Value: &openapi3.Schema{
+									Format: "int64",
+									Type:   "integer",
+								},
 							},
 						},
 					},
 				},
-			},
 			},
 		},
 	}
