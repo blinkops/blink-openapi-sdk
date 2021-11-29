@@ -304,7 +304,7 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 
 	// if no validate function was passed, the default one will be used
 	if callbacks.ValidateResponse == nil {
-		callbacks.ValidateResponse = ValidateDefault
+		callbacks.ValidateResponse = validateDefault
 	}
 
 	return &openApiPlugin{
@@ -700,7 +700,7 @@ func GetRequestUrl(actionContext *plugin.ActionContext, provider string) (string
 	}
 }
 
-func ValidateDefault(response Result) (bool, []byte) {
+func validateDefault(response Result) (bool, []byte) {
 
 	if response.StatusCode >= 200 && response.StatusCode <= 299 {
 		return true, nil

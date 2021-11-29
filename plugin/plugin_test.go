@@ -178,6 +178,7 @@ func (suite *PluginTestSuite) SetupSuite() {
 			},
 			Version: "1.0.0",
 		},
+		callbacks: Callbacks{ValidateResponse: validateDefault},
 	}
 }
 
