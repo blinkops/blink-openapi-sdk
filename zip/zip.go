@@ -3,11 +3,12 @@ package zip
 import (
 	"bytes"
 	"compress/gzip"
-	"github.com/blinkops/blink-openapi-sdk/consts"
-	"github.com/getkin/kin-openapi/openapi3"
 	"net/url"
 	"os"
 	fp "path/filepath"
+
+	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/getkin/kin-openapi/openapi3"
 )
 
 // UnzipFile unzips the file and saves to disk.
