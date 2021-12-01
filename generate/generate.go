@@ -13,6 +13,7 @@ import (
 	"github.com/blinkops/blink-openapi-sdk/plugin"
 	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
 	"github.com/manifoldco/promptui"
+
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -93,12 +94,10 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 					// use the first element from the options.
 					parameter.Default = parameter.Options[0]
 				}
-
 				newParameters[name] = parameter
 			}
 		}
 	}
-
 	act.Parameters = newParameters
 	return act
 }

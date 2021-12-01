@@ -4,16 +4,17 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/blinkops/blink-openapi-sdk/consts"
-	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
-	"github.com/blinkops/blink-sdk/plugin"
-	"github.com/getkin/kin-openapi/openapi3"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
+	"github.com/blinkops/blink-sdk/plugin"
+	"github.com/getkin/kin-openapi/openapi3"
+	log "github.com/sirupsen/logrus"
 )
 
 // parseCookieParams puts the cookie params in the cookie part of the request.
@@ -41,7 +42,6 @@ func parseHeaderParams(requestParameters map[string]string, operation *handlers.
 			}
 		}
 	}
-
 }
 
 // parsePathParams puts the path params path of the request.
@@ -64,7 +64,6 @@ func parseQueryParams(requestParameters map[string]string, operation *handlers.O
 	query := request.URL.Query()
 
 	for paramName, paramValue := range requestParameters {
-
 		for _, queryParam := range operation.QueryParams {
 			if paramName == queryParam.ParamName {
 				query.Add(paramName, paramValue)
@@ -102,13 +101,12 @@ func parseBodyParams(requestParameters map[string]string, operation *handlers.Op
 			values.Add(paramName, paramValue.(string))
 		}
 
-		//url encoded the values and add to the body.
+		// url encoded the values and add to the body.
 		request.Body = ioutil.NopCloser(strings.NewReader(values.Encode()))
 
 	} else {
 		// for any other content type, send the values as JSON.
 		marshaledBody, err := json.Marshal(requestBody)
-
 		if err != nil {
 			return err
 		}
@@ -178,7 +176,7 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
-func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request , prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
+func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
 	headers := make(map[string]string)
 	for header, headerValue := range securityHeaders {
 		if headerValueString, ok := headerValue.(string); ok {

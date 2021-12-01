@@ -3,6 +3,13 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"testing"
+
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin/handlers"
 	plugin_sdk "github.com/blinkops/blink-sdk/plugin"
@@ -11,12 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"os"
-	"testing"
 )
 
 var (
@@ -178,6 +179,7 @@ func (suite *PluginTestSuite) SetupSuite() {
 			},
 			Version: "1.0.0",
 		},
+		callbacks: Callbacks{ValidateResponse: validateDefault},
 	}
 }
 
@@ -237,52 +239,82 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 	}{
 		{
 			name: "sad path: missing in action context", // No connection doesn't return an error as it may not be mandatory
-			args: args{providerName: "some-bad-provider",
-				httpreq: &http.Request{Method: "POST",
-					URL: &url.URL{Scheme: "http",
-						Host: u.Host, Path: u.Path},
-					Header: map[string][]string{"Authorization": {"test1", "test2"}}},
-				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}},
+			args: args{
+				providerName: "some-bad-provider",
+				httpreq: &http.Request{
+					Method: "POST",
+					URL: &url.URL{
+						Scheme: "http",
+						Host:   u.Host, Path: u.Path,
+					},
+					Header: map[string][]string{"Authorization": {"test1", "test2"}},
+				},
+				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"},
+			},
 			wantErr: "connection with some-bad-provider is missing in action context",
 		},
 		{
 			name: "sad path: no such host",
-			args: args{providerName: "test",
-				httpreq: &http.Request{Method: "POST",
-					URL: &url.URL{Scheme: "http",
-						Host: "some-non-existing-host.com", Path: "some-fake-path"},
-					Header: map[string][]string{"Authorization": {"test1", "test2"}}},
-				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}},
+			args: args{
+				providerName: "test",
+				httpreq: &http.Request{
+					Method: "POST",
+					URL: &url.URL{
+						Scheme: "http",
+						Host:   "some-non-existing-host.com", Path: "some-fake-path",
+					},
+					Header: map[string][]string{"Authorization": {"test1", "test2"}},
+				},
+				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"},
+			},
 			wantErr: "no such host",
 		},
 		{
 			name: "sad path: mismatch between schemes (http response for https server)",
-			args: args{providerName: "test",
-				httpreq: &http.Request{Method: "POST",
-					URL: &url.URL{Scheme: "https",
-						Host: u.Host, Path: u.Path},
-					Header: map[string][]string{"Authorization": {"test1", "test2"}}},
-				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}},
+			args: args{
+				providerName: "test",
+				httpreq: &http.Request{
+					Method: "POST",
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   u.Host, Path: u.Path,
+					},
+					Header: map[string][]string{"Authorization": {"test1", "test2"}},
+				},
+				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"},
+			},
 			wantErr: "server gave HTTP response to HTTPS client",
 		},
 		{
 			name: "happy path",
-			args: args{providerName: "test",
-				httpreq: &http.Request{Method: "POST",
-					URL: &url.URL{Scheme: "http",
-						Host: u.Host, Path: u.Path},
-					Header: map[string][]string{"Authorization": {"test1", "test2"}}},
-				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}},
+			args: args{
+				providerName: "test",
+				httpreq: &http.Request{
+					Method: "POST",
+					URL: &url.URL{
+						Scheme: "http",
+						Host:   u.Host, Path: u.Path,
+					},
+					Header: map[string][]string{"Authorization": {"test1", "test2"}},
+				},
+				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"},
+			},
 			wantErr: "",
 		},
 		{
 			name: "happy path with bearer auth",
-			args: args{providerName: "test",
-				httpreq: &http.Request{Method: "POST",
-					URL: &url.URL{Scheme: "http",
-						Host: u.Host, Path: u.Path},
-					Header: map[string][]string{"Authorization": {"test1", "test2"}}},
-				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}},
+			args: args{
+				providerName: "test",
+				httpreq: &http.Request{
+					Method: "POST",
+					URL: &url.URL{
+						Scheme: "http",
+						Host:   u.Host, Path: u.Path,
+					},
+					Header: map[string][]string{"Authorization": {"test1", "test2"}},
+				},
+				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"},
+			},
 			wantErr: "",
 		},
 	}
@@ -411,7 +443,7 @@ func (suite *PluginTestSuite) TestHandleBodyParams() {
 	parentPath := ""
 	action := myPlugin.actions[0]
 
-	handleBodyParams(bodyMetadata{mask.Mask{},"", &action} , schema, parentPath, true, )
+	handleBodyParams(bodyMetadata{mask.Mask{}, "", &action}, schema, parentPath, true)
 
 	assert.Equal(suite.T(), 13, len(myPlugin.actions[0].Parameters))
 	assert.Contains(suite.T(), myPlugin.actions[0].Parameters, "dashboard.id")
@@ -433,18 +465,15 @@ func (suite *PluginTestSuite) TestParseActionParam() {
 }
 
 func (suite *PluginTestSuite) TestIsConnectionMandatory() {
-
 	defer os.Unsetenv("CONNECTION_IS_NOT_MANDATORY")
 
 	// set the env var true
 	os.Setenv("CONNECTION_IS_NOT_MANDATORY", "true")
 	assert.False(suite.T(), isConnectionMandatory())
 
-
 	// set the env var false
 	os.Setenv("CONNECTION_IS_NOT_MANDATORY", "false")
 	assert.True(suite.T(), isConnectionMandatory())
-
 }
 
 // In order for 'go test' to run this suite, we need to create
