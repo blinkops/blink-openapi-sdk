@@ -13,10 +13,6 @@ import (
 	"github.com/blinkops/blink-openapi-sdk/plugin"
 	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
 	"github.com/manifoldco/promptui"
-<<<<<<< HEAD
-
-=======
->>>>>>> dc91028dfa8bbf981b3f8dcfe5da964c7948ac03
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -77,10 +73,6 @@ func StringInSlice(name string, array []string) bool {
 // FilterMaskedParameters returns a new ParameterName with the same parameters as the masked ParameterName.
 func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, filterParameters bool) sdkPlugin.Action {
 	if !filterParameters { // return the original action
-<<<<<<< HEAD
-=======
-
->>>>>>> dc91028dfa8bbf981b3f8dcfe5da964c7948ac03
 		return act
 	}
 
@@ -214,14 +206,7 @@ func GenerateMaskFile(c *cli.Context) error {
 	outputFileName := c.String("output")
 
 	fmt.Printf("Generated [%d] actions into [%s]\n", len(actions), outputFileName)
-<<<<<<< HEAD
-
 	err = writeActions(actions, outputFileName)
-=======
-  
-	err = writeActions(actions, outputFileName)
-
->>>>>>> dc91028dfa8bbf981b3f8dcfe5da964c7948ac03
 	if err != nil {
 		return err
 	}
@@ -285,10 +270,6 @@ func GenerateAction(c *cli.Context) error {
 	actions := replaceOldActionWithNew(maskedActions, *newAction)
 
 	err = writeActions(actions, outputFileName)
-<<<<<<< HEAD
-=======
-
->>>>>>> dc91028dfa8bbf981b3f8dcfe5da964c7948ac03
 	if err != nil {
 		return err
 	}
