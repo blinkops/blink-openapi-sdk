@@ -2,32 +2,36 @@ package gen
 
 import (
 	"fmt"
-	"github.com/Songmu/prompter"
-	"github.com/blinkops/blink-openapi-sdk/mask"
-	"github.com/blinkops/blink-openapi-sdk/plugin"
-	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
-	"github.com/pkg/errors"
-	"github.com/urfave/cli/v2"
 	"html/template"
 	"io"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
+
+	"github.com/blinkops/blink-openapi-sdk/mask"
+	"github.com/blinkops/blink-openapi-sdk/plugin"
+	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
+	"github.com/manifoldco/promptui"
+	"github.com/pkg/errors"
+	"github.com/urfave/cli/v2"
 )
 
 const (
-	Action = `{{range $action := .}}
-  {{$action.Name }}:
-    alias: {{ actName $action.Name }}
+	Action = `{{range $ParameterName := .}}
+  {{$ParameterName.Name }}:
+    alias: {{ actName $ParameterName.Name }}
     parameters:{{ range $name, $param := .Parameters}}
       {{ if badPrefix $name }}"{{$name}}":
       {{- else }}{{$name}}:{{end}}
         alias: "{{ paramName $name }}"
         {{- if $param.Required }}
         required: true{{end}}
-        {{- if $param.Format }}
+		{{- if notEmpty $param.Default }}
+        default: {{$param.Default}}{{end}}
+		{{- if $param.Format}} 
         type: {{ fixType $param.Format }}{{end}}
-        index: {{ index $action.Name }}{{ end}}{{ end}}`
+        index: {{ index $ParameterName.Name }}{{ end}}{{ end}}`
 
 	YAMLTemplate = `actions:` + Action
 
@@ -66,32 +70,61 @@ func StringInSlice(name string, array []string) bool {
 	return false
 }
 
-// FilterMaskedParameters returns a new action with the same parameters as the masked action.
+// FilterMaskedParameters returns a new ParameterName with the same parameters as the masked ParameterName.
 func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, filterParameters bool) sdkPlugin.Action {
-	if !filterParameters {
+	if !filterParameters { // return the original action
 		return act
 	}
 
 	newParameters := map[string]sdkPlugin.ActionParameter{}
 
-	for parmName := range maskedAct.Parameters {
+	for parmName, mParam := range maskedAct.Parameters {
 		for name, parameter := range act.Parameters {
-			if name == parmName { // if the action name is also in the mask file.
+			if name == parmName { // if the ParameterName name is also in the mask file.
+
+				// if the mask stated that this param should be required.
+				if mParam.Required {
+					parameter.Required = mParam.Required
+				}
+				if mParam.Default != "" { // take the default value for the action from the mask.
+					parameter.Default = mParam.Default
+				} else if len(parameter.Options) > 0 {
+					// if the parameter has options (enum) and no default,
+					// use the first element from the options.
+					parameter.Default = parameter.Options[0]
+				}
+
 				newParameters[name] = parameter
 			}
 		}
 	}
+
 	act.Parameters = newParameters
 	return act
 }
 
+// IsPrefix checks if the given name is a prefix and should not be added to the mask file.
+// for example:
+//	service:
+//    alias: "Service"
+//  service.acknowledgement_timeout:
+//     alias: "Service Acknowledgement Timeout"
+// the service is a prefix and should not be added.
+func IsPrefix(act sdkPlugin.Action, name string) bool {
+	for paramName := range act.Parameters {
+		if strings.HasPrefix(paramName, name) && paramName != name {
+			return true
+		}
+	}
+	return false
+}
+
+// GetMaskedActions gets the actions from the mask file, when filterParameters is set to false it will return all the original parameters.
 func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistParams []string, filterParameters bool) ([]sdkPlugin.Action, error) {
-	if len(blacklistParams) > 0 {
-		for _, action := range actions {
-			for paramName := range action.Parameters {
-				if StringInSlice(paramName, blacklistParams) {
-					delete(action.Parameters, paramName)
-				}
+	for _, action := range actions {
+		for paramName := range action.Parameters {
+			if IsPrefix(action, paramName) || (len(blacklistParams) > 0 && StringInSlice(paramName, blacklistParams)) {
+				delete(action.Parameters, paramName)
 			}
 		}
 	}
@@ -109,9 +142,9 @@ func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistPara
 	var newActions []sdkPlugin.Action
 
 	for name, maskedAct := range m.Actions {
-		originalName := m.ReplaceActionAlias(name)
+		originalName := m.ReplaceActionAlias(name) // get the operationID
 		for _, act := range actions {
-			if act.Name == originalName {
+			if act.Name == originalName { // only take the actions that appear in the mask.
 				newActions = append(newActions, FilterMaskedParameters(maskedAct, act, filterParameters))
 			}
 		}
@@ -120,8 +153,8 @@ func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistPara
 	return newActions, nil
 }
 
-func writeActionsToTemplate(actions []sdkPlugin.Action, outputFileName string) error {
-	sort.SliceStable(actions, func(i, j int) bool {
+func writeActions(actions []sdkPlugin.Action, outputFileName string) error {
+	sort.SliceStable(actions, func(i, j int) bool { // sort the actions before writing them for consistency.
 		return actions[i].Name < actions[j].Name
 	})
 
@@ -152,11 +185,23 @@ func GenerateMaskFile(c *cli.Context) error {
 		return err
 	}
 
-	if !c.Bool("no-warnings") { // user wants warnings
-		a := fmt.Sprintf("You are about to generate [%d] actions \n with blacklist of [%#v] use mask original mask parameters [%#v] \n with are you sure?\n", len(actions), c.StringSlice("blacklist-params"), c.Bool("filterParameters"))
+	if !c.Bool("no-warnings") { // if warnings are enabled
+		a := fmt.Sprintf("You are about to generate [%d] actions \nwith blacklist of %q\nand use mask original mask parameters set to [%#v]\n", len(actions), c.StringSlice("blacklist-params"), c.Bool("filterParameters"))
 
-		if !prompter.YN(a, true) { // warn the user
-			return errors.New("user quit")
+		fmt.Println(a)
+		prompt := promptui.Prompt{
+			Label:     "Are you sure",
+			Default:   "Y",
+			IsConfirm: true,
+		}
+
+		result, err := prompt.Run()
+		if err != nil {
+			return err
+		}
+
+		if result == "n" {
+			return errors.New("")
 		}
 	}
 
@@ -164,7 +209,7 @@ func GenerateMaskFile(c *cli.Context) error {
 
 	fmt.Printf("Generated [%d] actions into [%s]\n", len(actions), outputFileName)
 
-	err = writeActionsToTemplate(actions, outputFileName)
+	err = writeActions(actions, outputFileName)
 	if err != nil {
 		return err
 	}
@@ -196,7 +241,7 @@ func GenerateMarkdown(c *cli.Context) error {
 	return nil
 }
 
-// GenerateAction appends a single action to mask file.
+// GenerateAction appends a single ParameterName to mask file.
 func GenerateAction(c *cli.Context) error {
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
 		OpenApiFile: c.String("file"),
@@ -205,24 +250,29 @@ func GenerateAction(c *cli.Context) error {
 		return err
 	}
 
-	maskedActions, err := GetMaskedActions(c.String("output"), apiPlugin.GetActions(), c.StringSlice("blacklist-params"), true)
+	outputFileName := c.String("output")
+
+	maskedActions, err := GetMaskedActions(outputFileName, apiPlugin.GetActions(), c.StringSlice("blacklist-params"), true)
 	if err != nil {
 		return err
 	}
-	actionName := c.String("name")
-	newAction := FilterActionsByOperationName(actionName, apiPlugin.GetActions())
 
-	if len(newAction) == 0 {
-		return errors.New("no such action")
+	actionName := c.String("name")
+	newAction := FilterActionsByOperationName(actionName, apiPlugin.GetActions()) // get the specific ParameterName we want to generate.
+
+	if newAction == nil {
+		return errors.New("no such ParameterName")
 	}
 
 	fmt.Printf("Adding %s...\n", actionName)
 
-	outputFileName := c.String("output")
+	if val, _ := strconv.ParseBool(c.String("interactive")); val {
+		InteractivelyFilterParameters(newAction)
+	}
 
-	actions := replaceOldActionWithNew(maskedActions, newAction)
+	actions := replaceOldActionWithNew(maskedActions, *newAction)
 
-	err = writeActionsToTemplate(actions, outputFileName)
+	err = writeActions(actions, outputFileName)
 	if err != nil {
 		return err
 	}
@@ -231,31 +281,74 @@ func GenerateAction(c *cli.Context) error {
 	return nil
 }
 
-// replaceOldActionWithNew filters out the old action from the actions slice, and adds the newAction to the end.
-func replaceOldActionWithNew(actions []sdkPlugin.Action, newAction []sdkPlugin.Action) []sdkPlugin.Action {
+func InteractivelyFilterParameters(action *sdkPlugin.Action) {
+	const (
+		paramRequired = "Required"
+		paramOptional = "Optional"
+		discardParam  = "Discard"
+	)
+
+	newParameters := map[string]sdkPlugin.ActionParameter{}
+
+	templates := promptui.SelectTemplates{
+		Active:   `🍔 {{ . | green | bold }}`,
+		Inactive: `   {{ . }}`,
+		Label:    `Add {{ . | blue | bold}}:`,
+	}
+
+	for name, param := range action.Parameters {
+
+		templates.Selected = `{{ "✔" | green | bold }} {{ "Parameter" | bold }} {{ "` + name + `" | bold }}: {{if eq . "` + paramRequired + `"}} {{ . | magenta }}  {{else if eq . "` + discardParam + `"}} {{ . | red }} {{else}} {{ . | cyan }} {{end}}`
+
+		prompt := promptui.Select{
+			Label:     name,
+			Templates: &templates,
+			Items:     []string{paramRequired, paramOptional, discardParam},
+		}
+
+		_, result, err := prompt.Run()
+		if err != nil {
+			fmt.Printf("Prompt failed %v\n", err)
+			return
+		}
+
+		switch result {
+		case paramRequired:
+			param.Required = true
+		case discardParam:
+			continue
+		}
+
+		newParameters[name] = param
+	}
+
+	action.Parameters = newParameters
+}
+
+// replaceOldActionWithNew filters out the old ParameterName from the actions slice, and adds the newAction to the end.
+func replaceOldActionWithNew(actions []sdkPlugin.Action, newAction sdkPlugin.Action) []sdkPlugin.Action {
 	var NewArray []sdkPlugin.Action
 
 	for _, act := range actions {
-		if act.Name != newAction[0].Name {
+		// go over the actions and take all the actions that dont match with the new ParameterName.
+		if act.Name != newAction.Name {
 			NewArray = append(NewArray, act)
 		}
 	}
 
-	NewArray = append(NewArray, newAction[0])
+	NewArray = append(NewArray, newAction)
 
 	return NewArray
 }
 
-func FilterActionsByOperationName(operationName string, actions []sdkPlugin.Action) []sdkPlugin.Action {
-	var filteredActions []sdkPlugin.Action
-
+func FilterActionsByOperationName(operationName string, actions []sdkPlugin.Action) *sdkPlugin.Action {
 	for _, action := range actions {
 		if action.Name == operationName {
-			filteredActions = append(filteredActions, action)
+			return &action
 		}
 	}
 
-	return filteredActions
+	return nil
 }
 
 func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
@@ -303,6 +396,9 @@ func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
 		},
 		"fixType": func(str string) string {
 			return strings.ReplaceAll(str, "-", "_")
+		},
+		"notEmpty": func(str string) bool {
+			return len(str) > 0
 		},
 	}
 
