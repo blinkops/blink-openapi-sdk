@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Songmu/prompter"
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin"
 	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
@@ -73,6 +74,7 @@ func StringInSlice(name string, array []string) bool {
 // FilterMaskedParameters returns a new ParameterName with the same parameters as the masked ParameterName.
 func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, filterParameters bool) sdkPlugin.Action {
 	if !filterParameters { // return the original action
+
 		return act
 	}
 
@@ -98,7 +100,6 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 			}
 		}
 	}
-
 	act.Parameters = newParameters
 	return act
 }
@@ -208,8 +209,9 @@ func GenerateMaskFile(c *cli.Context) error {
 	outputFileName := c.String("output")
 
 	fmt.Printf("Generated [%d] actions into [%s]\n", len(actions), outputFileName)
-
+  
 	err = writeActions(actions, outputFileName)
+
 	if err != nil {
 		return err
 	}
@@ -273,6 +275,7 @@ func GenerateAction(c *cli.Context) error {
 	actions := replaceOldActionWithNew(maskedActions, *newAction)
 
 	err = writeActions(actions, outputFileName)
+
 	if err != nil {
 		return err
 	}
