@@ -67,7 +67,7 @@ func unzipCustomActions(rootPath string) {
 }
 
 func walkDirFunc(filePath string, _ fs.DirEntry, err error) error {
-	if !strings.HasSuffix(filePath, ".gz") {
+	if err != nil || !strings.HasSuffix(filePath, ".gz") {
 		return nil
 	}
 	err = zip.UnzipFile(strings.TrimSuffix(filePath, ".gz"))
