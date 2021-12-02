@@ -2,11 +2,16 @@ package customact
 
 import (
 	"fmt"
+	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/blinkops/blink-openapi-sdk/zip"
 	"github.com/blinkops/blink-sdk/plugin"
 	"github.com/blinkops/blink-sdk/plugin/actions"
 	log "github.com/sirupsen/logrus"
+	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 )
 
 type ActionHandler func(*plugin.ActionContext, *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error)
@@ -21,6 +26,22 @@ func (c CustomActions) GetActions() []plugin.Action {
 	if err != nil {
 		log.Error("could not get the current directory")
 		return []plugin.Action{}
+	}
+	if os.Getenv(consts.ENVStatusKey) != "" {
+		err = filepath.WalkDir(c.ActionsFolderPath, func(filePath string, d fs.DirEntry, err error) error {
+			if !strings.HasSuffix(filePath, ".gz") {
+				return nil
+			}
+			err = zip.UnzipFile(filePath)
+			if err != nil {
+				log.Panic("Failed to unzip custom actions", err)
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			log.Panic("Failed to unzip custom actions", err)
+		}
 	}
 	actionsFromDisk, err := actions.LoadActionsFromDisk(path.Join(currentDirectory, c.ActionsFolderPath))
 	if err != nil {
