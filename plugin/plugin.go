@@ -630,6 +630,10 @@ func parseActionParam(maskData mask.Mask, actionName string, paramName *string, 
 			paramIndex = maskedParam.Index
 		}
 
+		if maskedParam.Description != "" {
+			paramDescription = maskedParam.Description
+		}
+
 		if maskedParam.IsMulti {
 			isMulti = true
 		}

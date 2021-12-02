@@ -27,8 +27,10 @@ const (
         alias: "{{ paramName $name }}"
         {{- if $param.Required }}
         required: true{{end}}
-		{{- if notEmpty $param.Default }}
+		{{- if $param.Default }}
         default: {{$param.Default}}{{end}}
+		{{- if $param.Description }}
+        description: {{$param.Description}}{{end}}
 		{{- if $param.Format}} 
         type: {{ fixType $param.Format }}{{end}}
         index: {{ index $ParameterName.Name }}{{ end}}{{ end}}`
@@ -81,6 +83,12 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 	for parmName, mParam := range maskedAct.Parameters {
 		for name, parameter := range act.Parameters {
 			if name == parmName { // if the ParameterName name is also in the mask file.
+
+				if mParam.Description != "" {
+					parameter.Description = mParam.Description
+				} else {
+					parameter.Description = ""
+				}
 
 				// if the mask stated that this param should be required.
 				if mParam.Required {
