@@ -27,23 +27,8 @@ func (c CustomActions) GetActions() []plugin.Action {
 		log.Error("could not get the current directory")
 		return []plugin.Action{}
 	}
-	log.Info(os.Getenv(consts.ENVStatusKey))
 	if os.Getenv(consts.ENVStatusKey) != "" {
-		log.Info("Prod environment - trying to unzip zipped custom actions")
-		err = filepath.WalkDir(currentDirectory + c.ActionsFolderPath, func(filePath string, d fs.DirEntry, err error) error {
-			if !strings.HasSuffix(filePath, ".gz") {
-				return nil
-			}
-			err = zip.UnzipFile(strings.TrimSuffix(filePath,".gz"))
-			if err != nil {
-				log.Panic("Failed to unzip custom actions", err)
-				return err
-			}
-			return nil
-		})
-		if err != nil {
-			log.Panic("Failed to unzip custom actions", err)
-		}
+		unzipCustomActions(currentDirectory + c.ActionsFolderPath)
 	}
 	actionsFromDisk, err := actions.LoadActionsFromDisk(path.Join(currentDirectory, c.ActionsFolderPath))
 	if err != nil {
@@ -72,3 +57,24 @@ func (c CustomActions) Execute(actionContext *plugin.ActionContext, request *plu
 	return c.Actions[request.Name](actionContext, request)
 
 }
+
+func unzipCustomActions(rootPath string) {
+	log.Info("Prod environment - trying to unzip zipped custom actions")
+	err := filepath.WalkDir(rootPath, walkDirFunc)
+	if err != nil {
+		log.Panic("Failed to unzip custom actions", err)
+	}
+}
+
+func walkDirFunc(filePath string, _ fs.DirEntry, err error) error {
+	if !strings.HasSuffix(filePath, ".gz") {
+		return nil
+	}
+	err = zip.UnzipFile(strings.TrimSuffix(filePath, ".gz"))
+	if err != nil {
+		log.Panic("Failed to unzip custom actions", err)
+		return err
+	}
+	return nil
+}
+
