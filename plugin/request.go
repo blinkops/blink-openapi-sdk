@@ -224,13 +224,15 @@ func cleanRedundantHeaders(requestHeaders *http.Header) {
 }
 
 func getRequestUrlFromConnection(requestUrl string, connection map[string]interface{}) string {
-	if explicitRequestUrl, ok := connection[consts.RequestUrlKey].(string); ok {
+	if explicitRequestUrl, ok := connection[consts.RequestUrlKey].(string); ok && len(explicitRequestUrl) > 0 {
 		requestUrl = explicitRequestUrl
 	}
 	return requestUrl
 }
 
-func getCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
+// GetCredentials gets the credentials from vault and returns it.
+// it's exported to allow plugins who use custom actions to use it
+func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
 	connection, err := actionContext.GetCredentials(provider)
 	if err != nil {
 		return nil, err

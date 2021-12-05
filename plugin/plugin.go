@@ -1,9 +1,8 @@
 package plugin
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
+	customact "github.com/blinkops/blink-openapi-sdk/plugin/custom_actions"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -73,6 +72,7 @@ type Callbacks struct {
 	TestCredentialsFunc  func(*plugin.ActionContext) (*plugin.CredentialsValidationResponse, error)
 	ValidateResponse     func(Result) (bool, []byte)
 	SetCustomAuthHeaders SetCustomAuthHeaders
+	CustomActions        customact.CustomActions
 }
 
 func (p *openApiPlugin) Describe() plugin.Description {
@@ -98,18 +98,74 @@ func (p *openApiPlugin) actionExist(actionName string) bool {
 	return false
 }
 
+func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, callbacks Callbacks) (*openApiPlugin, error) {
+	maskData, err := mask.ParseMask(meta.MaskFile)
+	if err != nil {
+		return nil, errors.Errorf("Cannot parse maskData file: %s", meta.MaskFile)
+	}
+
+	parsedFile, err := parseOpenApiFile(maskData, meta.OpenApiFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// if no validate function was passed, the default one will be used
+	if callbacks.ValidateResponse == nil {
+		callbacks.ValidateResponse = validateDefault
+	}
+
+	var customActions []plugin.Action
+	if len(callbacks.CustomActions.Actions) > 0 {
+		customActions = callbacks.CustomActions.GetActions()
+		if hasDuplicateActions(parsedFile.actions, customActions) {
+			panic("One or more custom action has the same name as an openapi action")
+		}
+	}
+	actions := append(customActions, parsedFile.actions...)
+
+	return &openApiPlugin{
+		actions:    actions,
+		requestUrl: parsedFile.requestUrl,
+		description: plugin.Description{
+			Name:        meta.Name,
+			Description: parsedFile.description,
+			Tags:        meta.Tags,
+			Connections: connectionTypes,
+			Provider:    meta.Provider,
+		},
+		headerValuePrefixes: meta.HeaderValuePrefixes,
+		headerAlias:         meta.HeaderAlias,
+		mask:                maskData,
+		callbacks:           callbacks,
+	}, nil
+}
+
+func hasDuplicateActions(actions []plugin.Action, customActions []plugin.Action) bool {
+	exists := make(map[string]bool)
+	for _, act := range append(actions, customActions...) {
+		if exists[act.Name] {
+			return true
+		}
+		exists[act.Name] = true
+	}
+	return false
+}
+
 func isConnectionMandatory() bool {
 	connectionNotMandatory, _ := strconv.ParseBool(os.Getenv(consts.ConnectionNotMandatory))
 	return !connectionNotMandatory
 }
 
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
-	connection, err := getCredentials(actionContext, p.Describe().Provider)
+	if p.callbacks.CustomActions.HasAction(request.Name) {
+		return p.callbacks.CustomActions.Execute(actionContext, request)
+	}
+	connection, err := GetCredentials(actionContext, p.Describe().Provider)
 	p.requestUrl = getRequestUrlFromConnection(p.requestUrl, connection)
 	// Remove request url and leave only other authentication headers
 	// We don't want to parse the URL with request params
 	delete(connection, consts.RequestUrlKey)
-	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
+	// Sometimes it's fine when there's no connection (like GitHub public repos) so we will not return an error
 
 	if err != nil {
 		if isConnectionMandatory() {
@@ -157,7 +213,7 @@ func fixRequestURL(r *http.Request) error {
 
 // ExecuteRequest is used by the 'validate' method in most openapi plugins.
 func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, setCustomHeaders SetCustomAuthHeaders) (Result, error) {
-	connection, err := getCredentials(actionContext, providerName)
+	connection, err := GetCredentials(actionContext, providerName)
 	// Remove request url and leave only other authentication headers
 	// We don't want to parse the URL with request params
 	delete(connection, consts.RequestUrlKey)
@@ -183,7 +239,7 @@ func executeRequestWithCredentials(connection map[string]interface{}, httpReques
 	}
 
 	result := Result{}
-	log.Info(httpRequest.URL)
+	log.Info(httpRequest.Method + ": " + httpRequest.URL.String())
 	if setCustomHeaders != nil {
 		if err := setCustomHeaders(connection, httpRequest); err != nil {
 			log.Error(err)
@@ -281,39 +337,6 @@ func StringInSlice(a string, list []string) bool {
 		}
 	}
 	return false
-}
-
-func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta PluginMetadata, callbacks Callbacks) (*openApiPlugin, error) {
-	mask, err := mask.ParseMask(meta.MaskFile)
-	if err != nil {
-		return nil, errors.Errorf("Cannot parse mask file: %s", meta.MaskFile)
-	}
-
-	parsedFile, err := parseOpenApiFile(mask, meta.OpenApiFile)
-	if err != nil {
-		return nil, err
-	}
-
-	// if no validate function was passed, the default one will be used
-	if callbacks.ValidateResponse == nil {
-		callbacks.ValidateResponse = validateDefault
-	}
-
-	return &openApiPlugin{
-		actions:    parsedFile.actions,
-		requestUrl: parsedFile.requestUrl,
-		description: plugin.Description{
-			Name:        meta.Name,
-			Description: parsedFile.description,
-			Tags:        meta.Tags,
-			Connections: connectionTypes,
-			Provider:    meta.Provider,
-		},
-		headerValuePrefixes: meta.HeaderValuePrefixes,
-		headerAlias:         meta.HeaderAlias,
-		mask:                mask,
-		callbacks:           callbacks,
-	}, nil
 }
 
 func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, error) {
@@ -437,254 +460,11 @@ func loadOpenApi(filePath string) (openApi *openapi3.T, err error) {
 	return loader.LoadFromFile(filePath)
 }
 
-func areParentsRequired(parentsRequired bool, propertyName string, schema *openapi3.Schema) bool {
-	if !parentsRequired {
-		return false
-	}
-
-	for _, requiredParam := range schema.Required {
-		if propertyName == requiredParam {
-			return true
-		}
-	}
-
-	return false
-}
-
-func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, parentsRequired bool) {
-	handleBodyParamOfType(metadata, paramSchema, parentPath, parentsRequired)
-
-	for propertyName, bodyProperty := range paramSchema.Properties {
-		fullParamPath := propertyName
-
-		if bodyProperty.Ref != "" {
-			index := strings.LastIndex(bodyProperty.Ref, "/") + 1
-			metadata.schemaPath += bodyProperty.Ref[index:] + "."
-			if hasDuplicates(metadata.schemaPath) {
-				continue
-			}
-		}
-
-		// Json params are represented as dot delimited params to allow proper parsing in UI later on
-		if parentPath != "" {
-			fullParamPath = parentPath + consts.BodyParamDelimiter + fullParamPath
-		}
-
-		// Keep recursion until leaf node is found
-		if bodyProperty.Value.Properties != nil {
-			handleBodyParams(metadata, bodyProperty.Value, fullParamPath, areParentsRequired(parentsRequired, propertyName, paramSchema))
-		} else {
-			handleBodyParamOfType(metadata, bodyProperty.Value, fullParamPath, parentsRequired)
-			isParamRequired := false
-
-			for _, requiredParam := range paramSchema.Required {
-				if propertyName == requiredParam {
-					isParamRequired = parentsRequired
-					break
-				}
-			}
-
-			if actionParam := parseActionParam(metadata.maskData, metadata.action.Name, &fullParamPath, bodyProperty, isParamRequired, bodyProperty.Value.Description); actionParam != nil {
-				metadata.action.Parameters[fullParamPath] = *actionParam
-			}
-		}
-	}
-}
-
-func handleBodyParamOfType(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, parentsRequired bool) {
-	if paramSchema.AllOf != nil || paramSchema.AnyOf != nil || paramSchema.OneOf != nil {
-
-		allSchemas := []openapi3.SchemaRefs{paramSchema.AllOf, paramSchema.AnyOf, paramSchema.OneOf}
-
-		// find properties nested in Allof, Anyof, Oneof
-		for _, schemaType := range allSchemas {
-			for _, schemaParams := range schemaType {
-				handleBodyParams(metadata, schemaParams.Value, parentPath, parentsRequired)
-			}
-		}
-	}
-}
-
-func getParamOptions(parsedOptions []interface{}, paramType *string) []string {
-	paramOptions := []string{}
-
-	if parsedOptions == nil {
-		return nil
-	}
-
-	for _, option := range parsedOptions {
-		if optionString, ok := option.(string); ok {
-			paramOptions = append(paramOptions, optionString)
-		}
-	}
-
-	if len(paramOptions) > 0 {
-		*paramType = consts.TypeDropdown
-	}
-
-	return paramOptions
-}
-
-func getParamPlaceholder(paramExample interface{}, paramType string) string {
-	paramPlaceholder, _ := paramExample.(string)
-
-	if paramType != consts.TypeObject {
-		if paramPlaceholder != "" {
-			return consts.ParamPlaceholderPrefix + paramPlaceholder
-		}
-	}
-
-	return paramPlaceholder
-}
-
-func getParamDefault(defaultValue interface{}, paramType string) string {
-	var paramDefault string
-
-	if paramType != consts.TypeArray {
-		if defaultValue == nil {
-			paramDefault = ""
-		} else {
-			paramDefault = fmt.Sprintf("%v", defaultValue)
-		}
-
-		return paramDefault
-	}
-
-	if defaultList, ok := defaultValue.([]interface{}); ok {
-		var defaultStrings []string
-
-		for _, value := range defaultList {
-			valueString := fmt.Sprintf("%v", value)
-			defaultStrings = append(defaultStrings, valueString)
-		}
-
-		paramDefault = strings.Join(defaultStrings, consts.ArrayDelimiter)
-	}
-
-	return paramDefault
-}
-
-func hasDuplicates(path string) bool {
-	paramsArray := strings.Split(path, consts.BodyParamDelimiter)
-	exists := make(map[string]bool)
-	for _, param := range paramsArray {
-		if exists[param] {
-			return true
-		} else {
-			exists[param] = true
-		}
-	}
-	return false
-}
-
-func convertParamType(paramType *string) {
-	switch *paramType {
-	case consts.TypeObject:
-		*paramType = consts.TypeJson
-	case consts.TypeBoolean:
-		*paramType = consts.TypeBool
-	}
-}
-
-func parseActionParam(maskData mask.Mask, actionName string, paramName *string, paramSchema *openapi3.SchemaRef, isParamRequired bool, paramDescription string) *plugin.ActionParameter {
-	var (
-		isMulti    bool
-		paramIndex int64
-	)
-
-	paramType := paramSchema.Value.Type
-	paramFormat := paramSchema.Value.Format
-
-	paramOptions := getParamOptions(paramSchema.Value.Enum, &paramType)
-	paramPlaceholder := getParamPlaceholder(paramSchema.Value.Example, paramType)
-	paramDefault := getParamDefault(paramSchema.Value.Default, paramType)
-	paramIndex = 999 // parameters will be ordered from lowest to highest in UI. This is the default, meaning - the end of the list.
-
-	if maskData.Actions != nil {
-		maskedParam := maskData.GetParameter(actionName, *paramName)
-		if maskedParam == nil {
-			return nil
-		}
-		if maskedParam.Alias != "" {
-			*paramName = maskedParam.Alias
-		}
-
-		// Override Required property only if not explicitly defined by OpenAPI definition
-		if !isParamRequired {
-			isParamRequired = maskedParam.Required
-		}
-
-		// Override the Type property
-		if maskedParam.Type != "" {
-			extractedType := extractTypeFromFormat(maskedParam.Type)
-
-			if extractedType == "" {
-				paramType = maskedParam.Type
-			} else {
-				paramType = extractedType
-				paramFormat = maskedParam.Type
-			}
-		}
-
-		if maskedParam.Index != 0 {
-			paramIndex = maskedParam.Index
-		}
-
-		if maskedParam.Description != "" {
-			paramDescription = maskedParam.Description
-		}
-
-		if maskedParam.IsMulti {
-			isMulti = true
-		}
-
-		if maskedParam.Default != "" {
-			paramDefault = maskedParam.Default
-
-			if paramType == consts.TypeJson {
-				defaultMarshal := new(bytes.Buffer)
-				if err := json.Indent(defaultMarshal, []byte(paramDefault), "", "\t"); err == nil {
-					paramDefault = defaultMarshal.String()
-				} else {
-					log.Debugf("Failed to marshal default value: %s, got: %v", paramDefault, err)
-				}
-			}
-		}
-	}
-
-	// Convert parameters of type object to code:json and parameters of type boolean to bool
-	convertParamType(&paramType)
-
-	return &plugin.ActionParameter{
-		Type:        paramType,
-		Description: paramDescription,
-		Placeholder: paramPlaceholder,
-		Required:    isParamRequired,
-		Default:     paramDefault,
-		Options:     paramOptions,
-		Index:       paramIndex,
-		Format:      paramFormat,
-		IsMulti:     isMulti,
-	}
-}
-
-func extractTypeFromFormat(paramFormat string) string {
-	paramType := strings.Split(paramFormat, mask.FormatDelimiter)[0]
-
-	for _, prefixType := range mask.FormatPrefixes {
-		if paramType == prefixType {
-			return paramType
-		}
-	}
-
-	return ""
-}
-
 // GetRequestUrl Exported for plugin test credentials function
 func GetRequestUrl(actionContext *plugin.ActionContext, provider string) (string, error) {
-	if connection, err := getCredentials(actionContext, provider); err != nil {
+	if connection, err := GetCredentials(actionContext, provider); err != nil {
 		log.Errorf("Failed to fetch credentials for %s, got: %v", provider, err)
-		return "", errors.Errorf("Failed to fetch credentials for %s", provider)
+		return "", errors.Errorf("Failed to fetch the request URL for %s", provider)
 	} else {
 		return getRequestUrlFromConnection("", connection), nil
 	}
