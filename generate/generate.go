@@ -2,8 +2,6 @@ package gen
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
 	"html/template"
 	"io"
 	"io/fs"
@@ -13,6 +11,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin"
@@ -69,7 +70,7 @@ const (
   </tbody>
 </table>
 `
-	README = "README.md"
+	README       = "README.md"
 	actionSuffix = ".action.yaml"
 )
 
@@ -242,7 +243,7 @@ func GenerateMarkdown(c *cli.Context) error {
 		return err
 	}
 
-	f, err := os.OpenFile(README, os.O_APPEND|os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	f, err := os.OpenFile(README, os.O_APPEND|os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
@@ -262,13 +263,6 @@ func GenerateMarkdown(c *cli.Context) error {
 }
 
 func generateCustomActionsReadme(file io.Writer, path string) {
-	type customAction struct {
-		Name        string `yaml:"name"`
-		Description string `yaml:"description"`
-		Parameters  map[string]struct {
-			Description string `yaml:"description"`
-		} `yaml:"parameters"`
-	}
 	currentDirectory, err := os.Getwd()
 	if err != nil {
 		log.Error(err.Error())
@@ -283,7 +277,7 @@ func generateCustomActionsReadme(file io.Writer, path string) {
 			log.Error("Failed to read custom action file: " + err.Error())
 			return err
 		}
-		var action customAction
+		var action sdkPlugin.Action
 		err = yaml.Unmarshal(actionFile, &action)
 		if err != nil {
 			log.Error("Failed to unmarshal custom action: " + err.Error())

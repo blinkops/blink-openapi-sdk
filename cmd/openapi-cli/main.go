@@ -71,9 +71,9 @@ func main() {
 								DefaultText: "mask.yaml",
 							},
 							&cli.StringFlag{
-								Name:        "custom-actions",
-								Aliases:     []string{"ca"},
-								Usage:       "the path to the custom actions directory",
+								Name:    "custom-actions",
+								Aliases: []string{"ca"},
+								Usage:   "the path to the custom actions directory",
 							},
 						},
 						Name:    "readme",

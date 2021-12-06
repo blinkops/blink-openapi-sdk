@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"fmt"
-	customact "github.com/blinkops/blink-openapi-sdk/plugin/custom_actions"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	customact "github.com/blinkops/blink-openapi-sdk/plugin/custom_actions"
 
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/mask"

@@ -2,16 +2,17 @@ package customact
 
 import (
 	"fmt"
-	"github.com/blinkops/blink-openapi-sdk/consts"
-	"github.com/blinkops/blink-openapi-sdk/zip"
-	"github.com/blinkops/blink-sdk/plugin"
-	"github.com/blinkops/blink-sdk/plugin/actions"
-	log "github.com/sirupsen/logrus"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/blinkops/blink-openapi-sdk/consts"
+	"github.com/blinkops/blink-openapi-sdk/zip"
+	"github.com/blinkops/blink-sdk/plugin"
+	"github.com/blinkops/blink-sdk/plugin/actions"
+	log "github.com/sirupsen/logrus"
 )
 
 type ActionHandler func(*plugin.ActionContext, *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error)
@@ -36,7 +37,6 @@ func (c CustomActions) GetActions() []plugin.Action {
 		return []plugin.Action{}
 	}
 	return actionsFromDisk
-
 }
 
 func (c CustomActions) HasAction(actionName string) bool {
@@ -55,7 +55,6 @@ func (c CustomActions) Execute(actionContext *plugin.ActionContext, request *plu
 	}
 
 	return c.Actions[request.Name](actionContext, request)
-
 }
 
 func unzipCustomActions(rootPath string) {
@@ -77,4 +76,3 @@ func walkDirFunc(filePath string, _ fs.DirEntry, err error) error {
 	}
 	return nil
 }
-
