@@ -4,10 +4,16 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin"
@@ -40,6 +46,10 @@ const (
 	READMETemplate = `## blink-{{ .Describe.Name }}
 > {{ .Describe.Description }}
 {{range .GetActions}}
+` + READMEAction + `
+{{ end}}`
+
+	READMEAction = `
 ## {{.Name }}
 * {{.Description }}
 <table>
@@ -59,8 +69,9 @@ const (
     </tr>
   </tbody>
 </table>
-{{ end}}`
-	README = "README.md"
+`
+	README       = "README.md"
+	actionSuffix = ".action.yaml"
 )
 
 func StringInSlice(name string, array []string) bool {
@@ -232,10 +243,11 @@ func GenerateMarkdown(c *cli.Context) error {
 		return err
 	}
 
-	f, err := os.Create(README)
+	f, err := os.OpenFile(README, os.O_APPEND|os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
+
 	defer f.Close()
 
 	err = runTemplate(f, READMETemplate, apiPlugin)
@@ -243,7 +255,44 @@ func GenerateMarkdown(c *cli.Context) error {
 		return err
 	}
 
+	if c.String("custom-actions") != "" {
+		generateCustomActionsReadme(f, c.String("custom-actions"))
+	}
+
 	return nil
+}
+
+func generateCustomActionsReadme(file io.Writer, path string) {
+	currentDirectory, err := os.Getwd()
+	if err != nil {
+		log.Error(err.Error())
+		return
+	}
+	err = filepath.WalkDir(currentDirectory+path, func(filePath string, _ fs.DirEntry, err error) error {
+		if err != nil || !strings.HasSuffix(filePath, actionSuffix) {
+			return nil
+		}
+		actionFile, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			log.Error("Failed to read custom action file: " + err.Error())
+			return err
+		}
+		var action sdkPlugin.Action
+		err = yaml.Unmarshal(actionFile, &action)
+		if err != nil {
+			log.Error("Failed to unmarshal custom action: " + err.Error())
+			return err
+		}
+		err = runTemplate(file, READMEAction, action)
+		if err != nil {
+			log.Error(err.Error())
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		log.Error("Error occurred while going over the custom actions: " + err.Error())
+	}
 }
 
 // GenerateAction appends a single ParameterName to mask file.
@@ -357,30 +406,7 @@ func FilterActionsByOperationName(operationName string, actions []sdkPlugin.Acti
 }
 
 func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
-	upperCaseWords := []string{"url", "id", "ids", "ip", "ssl"}
 	indexMap := map[string]int{}
-
-	genAlias := func(str string) string {
-		// replace _ with ' '
-		str = strings.ReplaceAll(str, "_", " ")
-		str = strings.ReplaceAll(str, ".", " ")
-		str = strings.ReplaceAll(str, "[]", "")
-		// iter over words in the string
-
-		words := strings.Split(str, " ")
-
-		for i, word := range words {
-			// check if the word is in out list.
-			if plugin.StringInSlice(word, upperCaseWords) {
-				words[i] = strings.ToUpper(word)
-			}
-		}
-
-		str = strings.Join(words, " ")
-		str = strings.ReplaceAll(str, "IDS", "IDs")
-
-		return strings.Join(strings.Fields(strings.Title(str)), " ")
-	}
 
 	funcs := template.FuncMap{
 		"actName": genAlias,
@@ -417,4 +443,25 @@ func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
 	}
 
 	return nil
+}
+
+func genAlias(str string) string {
+	upperCaseWords := []string{"url", "id", "ids", "ip", "ssl"}
+	str = strings.ReplaceAll(str, "_", " ")
+	str = strings.ReplaceAll(str, ".", " ")
+	str = strings.ReplaceAll(str, "[]", "")
+
+	words := strings.Split(str, " ")
+
+	for i, word := range words {
+		// check if the word is in out list.
+		if plugin.StringInSlice(word, upperCaseWords) {
+			words[i] = strings.ToUpper(word)
+		}
+	}
+
+	str = strings.Join(words, " ")
+	str = strings.ReplaceAll(str, "IDS", "IDs")
+
+	return strings.Join(strings.Fields(strings.Title(str)), " ")
 }

@@ -1,15 +1,16 @@
 package customact
 
 import (
+	"os"
+	"os/exec"
+	"testing"
+
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-sdk/plugin"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
-	"os/exec"
-	"testing"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -26,9 +27,8 @@ func TestPluginSuite(t *testing.T) {
 }
 
 func (suite *CustomActTestSuite) SetupSuite() {
-
 	actions := map[string]ActionHandler{
-		"CreateIssue": createIssue,
+		"CreateIssue":        createIssue,
 		"CreateIssueGzipped": createIssue,
 	}
 
@@ -36,7 +36,6 @@ func (suite *CustomActTestSuite) SetupSuite() {
 		Actions:           actions,
 		ActionsFolderPath: "",
 	}
-
 }
 
 func createIssue(_ *plugin.ActionContext, _ *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
