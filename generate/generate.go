@@ -45,7 +45,7 @@ const (
 	READMETemplate = `## blink-{{ .Describe.Name }}
 > {{ .Describe.Description }}
 {{range .GetActions}}
-` +	READMEAction + `
+` + READMEAction + `
 {{ end}}`
 
 	READMEAction = `
@@ -70,6 +70,7 @@ const (
 </table>
 `
 	README = "README.md"
+	actionSuffix = ".action.yaml"
 )
 
 func StringInSlice(name string, array []string) bool {
@@ -260,11 +261,11 @@ func GenerateMarkdown(c *cli.Context) error {
 	return nil
 }
 
-func generateCustomActionsReadme(file *os.File, path string) {
+func generateCustomActionsReadme(file io.Writer, path string) {
 	type customAction struct {
-		Name string `yaml:"name"`
+		Name        string `yaml:"name"`
 		Description string `yaml:"description"`
-		Parameters map[string]struct{
+		Parameters  map[string]struct {
 			Description string `yaml:"description"`
 		} `yaml:"parameters"`
 	}
@@ -274,7 +275,7 @@ func generateCustomActionsReadme(file *os.File, path string) {
 		return
 	}
 	err = filepath.WalkDir(currentDirectory+path, func(filePath string, _ fs.DirEntry, err error) error {
-		if err != nil || !strings.HasSuffix(filePath, ".action.yaml") {
+		if err != nil || !strings.HasSuffix(filePath, actionSuffix) {
 			return nil
 		}
 		actionFile, err := ioutil.ReadFile(filePath)
@@ -289,12 +290,15 @@ func generateCustomActionsReadme(file *os.File, path string) {
 			return err
 		}
 		err = runTemplate(file, READMEAction, action)
+		if err != nil {
+			log.Error(err.Error())
+			return err
+		}
 		return nil
 	})
 	if err != nil {
 		log.Error("Error occurred while going over the custom actions: " + err.Error())
 	}
-
 }
 
 // GenerateAction appends a single ParameterName to mask file.
