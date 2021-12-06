@@ -150,6 +150,11 @@ func main() {
 								Aliases: []string{"exclude", "param-blacklist"},
 								Usage:   "parameters you don't wish to generate.",
 							},
+							&cli.BoolFlag{
+								Name:    "interactive",
+								Aliases: []string{"i"},
+								Usage:   "the cli will prompt the user to choose parameters",
+							},
 						},
 						Name:    "action",
 						Aliases: []string{"act"},
