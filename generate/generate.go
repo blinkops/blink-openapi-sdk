@@ -18,13 +18,13 @@ import (
 )
 
 const (
-	Action = `{{range $ParameterName := .}}
-  {{$ParameterName.Name }}:
-    alias: {{ actName $ParameterName.Name }}
+	Action = `{{range $Action := .}}
+  {{$Action.Name }}:
+    alias: {{ genAlias $Action.Alias }}
     parameters:{{ range $name, $param := .Parameters}}
       {{ if badPrefix $name }}"{{$name}}":
       {{- else }}{{$name}}:{{end}}
-        alias: "{{ paramName $name }}"
+        alias: "{{ paramName $param.Alias }}"
         {{- if $param.Required }}
         required: true{{end}}
 		{{- if $param.Default }}
@@ -33,7 +33,7 @@ const (
         description: {{$param.Description}}{{end}}
 		{{- if $param.Format}} 
         type: {{ fixType $param.Format }}{{end}}
-        index: {{ index $ParameterName.Name }}{{ end}}{{ end}}`
+        index: {{ index $Action.Name }}{{ end}}{{ end}}`
 
 	YAMLTemplate = `actions:` + Action
 
@@ -72,41 +72,102 @@ func StringInSlice(name string, array []string) bool {
 	return false
 }
 
-// FilterMaskedParameters returns a new ParameterName with the same parameters as the masked ParameterName.
-func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, filterParameters bool) sdkPlugin.Action {
-	if !filterParameters { // return the original action
-		return act
+type Parameter struct {
+	Alias       string
+	Type        string   `yaml:"type"`
+	Description string   `yaml:"description"`
+	Placeholder string   `yaml:"placeholder"`
+	Required    bool     `yaml:"required"`
+	Default     string   `yaml:"default"`
+	Pattern     string   `yaml:"pattern"`  // optional: regex to validate in case of input component
+	Options     []string `yaml:"options"`  // optional: the option list in case of dropdown\checkbox
+	Index       int64    `yaml:"index"`    // optional: the ordinal number of the parameter in the parameter list
+	Format      string   `yaml:"format"`   // optional: format of the field for example -> type: date, format: date_epoch
+	IsMulti     bool     `yaml:"is_multi"` // optional: is this a multi-select field
+}
+
+type EnhancedAction struct {
+	Alias       string
+	Name        string               `yaml:"name"`
+	Description string               `yaml:"description"`
+	Enabled     bool                 `yaml:"enabled"`
+	EntryPoint  string               `yaml:"entry_point"`
+	Parameters  map[string]Parameter `yaml:"parameters"`
+}
+
+func newParameter(a map[string]sdkPlugin.ActionParameter) map[string]Parameter {
+	newMap := map[string]Parameter{}
+
+	for name, param := range a {
+		newMap[name] = Parameter{
+			Alias:       genAlias(name),
+			Type:        param.Type,
+			Description: param.Description,
+			Placeholder: param.Placeholder,
+			Required:    param.Required,
+			Default:     param.Default,
+			Pattern:     param.Pattern,
+			Options:     param.Options,
+			Index:       param.Index,
+			Format:      param.Format,
+			IsMulti:     param.IsMulti,
+		}
 	}
 
-	newParameters := map[string]sdkPlugin.ActionParameter{}
+	return newMap
+}
+
+func newCliAction(act sdkPlugin.Action) EnhancedAction {
+	return EnhancedAction{
+		Alias:       genAlias(act.Name),
+		Name:        act.Name,
+		Description: act.Description,
+		Enabled:     act.Enabled,
+		EntryPoint:  act.EntryPoint,
+		Parameters:  newParameter(act.Parameters),
+	}
+}
+
+// FilterMaskedParameters returns a new ParameterName with the same parameters as the masked ParameterName.
+func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, filterParameters bool) EnhancedAction {
+	newAction := newCliAction(act)
+
+	if !filterParameters { // return the original action
+		return newAction
+	}
+
+	newParameters := map[string]Parameter{}
 
 	for parmName, mParam := range maskedAct.Parameters {
 		for name, parameter := range act.Parameters {
 			if name == parmName { // if the ParameterName name is also in the mask file.
-
-				if mParam.Description != "" {
-					parameter.Description = mParam.Description
-				} else {
-					parameter.Description = ""
-				}
-
-				// if the mask stated that this param should be required.
-				if mParam.Required {
-					parameter.Required = mParam.Required
-				}
-				if mParam.Default != "" { // take the default value for the action from the mask.
-					parameter.Default = mParam.Default
-				} else if len(parameter.Options) > 0 {
+				if mParam.Default == "" && len(parameter.Options) > 0 {
 					// if the parameter has options (enum) and no default,
 					// use the first element from the options.
 					parameter.Default = parameter.Options[0]
 				}
-				newParameters[name] = parameter
+
+				newParameters[name] = Parameter{
+					Alias:       mParam.Alias,
+					Type:        mParam.Type,
+					Description: mParam.Description,
+					Placeholder: parameter.Placeholder,
+					Required:    mParam.Required,
+					Default:     mParam.Default,
+					Pattern:     parameter.Pattern,
+					Options:     parameter.Options,
+					Index:       mParam.Index,
+					Format:      parameter.Format,
+					IsMulti:     mParam.IsMulti,
+				}
 			}
 		}
 	}
-	act.Parameters = newParameters
-	return act
+
+	newAction.Parameters = newParameters
+	newAction.Alias = maskedAct.Alias
+
+	return newAction
 }
 
 // IsPrefix checks if the given name is a prefix and should not be added to the mask file.
@@ -126,7 +187,7 @@ func IsPrefix(act sdkPlugin.Action, name string) bool {
 }
 
 // GetMaskedActions gets the actions from the mask file, when filterParameters is set to false it will return all the original parameters.
-func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistParams []string, filterParameters bool) ([]sdkPlugin.Action, error) {
+func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistParams []string, filterParameters bool) ([]EnhancedAction, error) {
 	for _, action := range actions {
 		for paramName := range action.Parameters {
 			if IsPrefix(action, paramName) || (len(blacklistParams) > 0 && StringInSlice(paramName, blacklistParams)) {
@@ -137,7 +198,13 @@ func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistPara
 
 	// mask file was not given
 	if maskFile == "" {
-		return actions, nil
+		var a []EnhancedAction
+
+		for _, action := range actions {
+			a = append(a, newCliAction(action))
+		}
+
+		return a, nil
 	}
 
 	m, err := mask.ParseMask(maskFile)
@@ -145,7 +212,7 @@ func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistPara
 		return nil, err
 	}
 
-	var newActions []sdkPlugin.Action
+	var newActions []EnhancedAction
 
 	for name, maskedAct := range m.Actions {
 		originalName := m.ReplaceActionAlias(name) // get the operationID
@@ -159,7 +226,7 @@ func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistPara
 	return newActions, nil
 }
 
-func writeActions(actions []sdkPlugin.Action, outputFileName string) error {
+func writeActions(actions []EnhancedAction, outputFileName string) error {
 	sort.SliceStable(actions, func(i, j int) bool { // sort the actions before writing them for consistency.
 		return actions[i].Name < actions[j].Name
 	})
@@ -248,34 +315,37 @@ func GenerateMarkdown(c *cli.Context) error {
 
 // GenerateAction appends a single ParameterName to mask file.
 func GenerateAction(c *cli.Context) error {
+	return _generateAction(c.String("name"), c.String("file"), c.String("output"), c.StringSlice("blacklist-params"), c.String("interactive"))
+}
+
+func _generateAction(actionName string, OpenApiFile string, outputFileName string, paramBlacklist []string, isInteractive string) error {
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
-		OpenApiFile: c.String("file"),
+		OpenApiFile: OpenApiFile,
 	}, plugin.Callbacks{})
 	if err != nil {
 		return err
 	}
 
-	outputFileName := c.String("output")
-
-	maskedActions, err := GetMaskedActions(outputFileName, apiPlugin.GetActions(), c.StringSlice("blacklist-params"), true)
+	maskedActions, err := GetMaskedActions(outputFileName, apiPlugin.GetActions(), paramBlacklist, true)
 	if err != nil {
 		return err
 	}
 
-	actionName := c.String("name")
-	newAction := FilterActionsByOperationName(actionName, apiPlugin.GetActions()) // get the specific ParameterName we want to generate.
+	newActionPtr := FilterActionsByOperationName(actionName, apiPlugin.GetActions()) // get the specific ParameterName we want to generate.
 
-	if newAction == nil {
+	if newActionPtr == nil {
 		return errors.New("no such ParameterName")
 	}
 
+	newAction := newCliAction(*newActionPtr)
+
 	fmt.Printf("Adding %s...\n", actionName)
 
-	if val, _ := strconv.ParseBool(c.String("interactive")); val {
-		InteractivelyFilterParameters(newAction)
+	if val, _ := strconv.ParseBool(isInteractive); val {
+		InteractivelyFilterParameters(&newAction)
 	}
 
-	actions := replaceOldActionWithNew(maskedActions, *newAction)
+	actions := replaceOldActionWithNew(maskedActions, newAction)
 
 	err = writeActions(actions, outputFileName)
 	if err != nil {
@@ -286,14 +356,14 @@ func GenerateAction(c *cli.Context) error {
 	return nil
 }
 
-func InteractivelyFilterParameters(action *sdkPlugin.Action) {
+func InteractivelyFilterParameters(action *EnhancedAction) {
 	const (
 		paramRequired = "Required"
 		paramOptional = "Optional"
 		discardParam  = "Discard"
 	)
 
-	newParameters := map[string]sdkPlugin.ActionParameter{}
+	newParameters := map[string]Parameter{}
 
 	templates := promptui.SelectTemplates{
 		Active:   `🍔 {{ . | green | bold }}`,
@@ -330,9 +400,9 @@ func InteractivelyFilterParameters(action *sdkPlugin.Action) {
 	action.Parameters = newParameters
 }
 
-// replaceOldActionWithNew filters out the old ParameterName from the actions slice, and adds the newAction to the end.
-func replaceOldActionWithNew(actions []sdkPlugin.Action, newAction sdkPlugin.Action) []sdkPlugin.Action {
-	var NewArray []sdkPlugin.Action
+// replaceOldActionWithNew filters out the old ParameterName from the actions slice, and adds the newCliAction to the end.
+func replaceOldActionWithNew(actions []EnhancedAction, newAction EnhancedAction) []EnhancedAction {
+	var NewArray []EnhancedAction
 
 	for _, act := range actions {
 		// go over the actions and take all the actions that dont match with the new ParameterName.
@@ -356,34 +426,35 @@ func FilterActionsByOperationName(operationName string, actions []sdkPlugin.Acti
 	return nil
 }
 
-func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
+func genAlias(str string) string {
 	upperCaseWords := []string{"url", "id", "ids", "ip", "ssl"}
-	indexMap := map[string]int{}
 
-	genAlias := func(str string) string {
-		// replace _ with ' '
-		str = strings.ReplaceAll(str, "_", " ")
-		str = strings.ReplaceAll(str, ".", " ")
-		str = strings.ReplaceAll(str, "[]", "")
-		// iter over words in the string
+	// replace _ with ' '
+	str = strings.ReplaceAll(str, "_", " ")
+	str = strings.ReplaceAll(str, ".", " ")
+	str = strings.ReplaceAll(str, "[]", "")
+	// iter over words in the string
 
-		words := strings.Split(str, " ")
+	words := strings.Split(str, " ")
 
-		for i, word := range words {
-			// check if the word is in out list.
-			if plugin.StringInSlice(word, upperCaseWords) {
-				words[i] = strings.ToUpper(word)
-			}
+	for i, word := range words {
+		// check if the word is in out list.
+		if plugin.StringInSlice(word, upperCaseWords) {
+			words[i] = strings.ToUpper(word)
 		}
-
-		str = strings.Join(words, " ")
-		str = strings.ReplaceAll(str, "IDS", "IDs")
-
-		return strings.Join(strings.Fields(strings.Title(str)), " ")
 	}
 
+	str = strings.Join(words, " ")
+	str = strings.ReplaceAll(str, "IDS", "IDs")
+
+	return strings.Join(strings.Fields(strings.Title(str)), " ")
+}
+
+func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
+	indexMap := map[string]int{}
+
 	funcs := template.FuncMap{
-		"actName": genAlias,
+		"genAlias": genAlias,
 		"paramName": func(str string) string {
 			a := strings.Split(genAlias(str), ".")
 			return a[len(a)-1]
