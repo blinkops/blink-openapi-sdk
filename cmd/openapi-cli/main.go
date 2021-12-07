@@ -2,13 +2,13 @@ package main
 
 import (
 	"fmt"
+	gen "github.com/blinkops/blink-openapi-sdk/generate"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
 
-	"github.com/blinkops/blink-openapi-sdk/generate"
 	"github.com/urfave/cli/v2"
 )
 
@@ -74,12 +74,14 @@ func main() {
 								Name:    "custom-actions",
 								Aliases: []string{"ca"},
 								Usage:   "the path to the custom actions directory",
+								Value: "./custom_actions/actions",
+								DefaultText: "./custom_actions/actions",
 							},
 						},
 						Name:    "readme",
 						Aliases: []string{"md", "r"},
 						Usage:   "generate readme.md for openapi plugins",
-						Action:  gen.GenerateMarkdown,
+						Action:  gen.GenerateReadme,
 					},
 					{
 						Flags: []cli.Flag{

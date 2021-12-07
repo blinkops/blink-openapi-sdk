@@ -30,5 +30,5 @@ const (
 	GzipFile               = ".gz"
 	ENVStatusKey           = "PROD"
 	ConnectionNotMandatory = "CONNECTION_IS_NOT_MANDATORY"
-	TestConnectionFailed   = "Test Connection Failed"
+	TestConnectionFailed   = "Failed - incorrect connection credentials. Please validate your connection details and try again"
 )
