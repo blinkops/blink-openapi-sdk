@@ -232,7 +232,37 @@ func _GenerateReadme(pluginName string, maskFile string, openapiFile string, cus
 	return nil
 }
 
-func _generateAction(actionName string, OpenApiFile string, outputFileName string, paramBlacklist []string, isInteractive string) error {
+
+func generateCustomActionsReadme(file io.Writer, path string) {
+	err := filepath.WalkDir(path, func(filePath string, _ fs.DirEntry, err error) error {
+		if err != nil || !strings.HasSuffix(filePath, actionSuffix) {
+			return nil
+		}
+		actionFile, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			log.Error("Failed to read custom action file: " + err.Error())
+			return err
+		}
+		var action sdkPlugin.Action
+		err = yaml.Unmarshal(actionFile, &action)
+		if err != nil {
+			log.Error("Failed to unmarshal custom action: " + err.Error())
+			return err
+		}
+		err = runTemplate(file, READMEAction, action)
+		if err != nil {
+			log.Error(err.Error())
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		log.Error("Error occurred while going over the custom actions: " + err.Error())
+	}
+}
+
+// GenerateAction appends a single ParameterName to mask file.
+func GenerateAction(c *cli.Context) error {
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
 		OpenApiFile: OpenApiFile,
 	}, plugin.Callbacks{})
