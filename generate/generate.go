@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,53 +17,8 @@ import (
 	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
 	"github.com/manifoldco/promptui"
 	"github.com/pkg/errors"
-	"github.com/urfave/cli/v2"
-)
-
-const (
-	Action = `{{range $Action := .}}
-  {{$Action.Name }}:
-    alias: {{ genAlias $Action.Alias }}
-    parameters:{{ range $name, $param := .Parameters}}
-      {{ if badPrefix $name }}"{{$name}}":
-      {{- else }}{{$name}}:{{end}}
-        alias: "{{ paramName $param.Alias }}"
-        {{- if $param.Required }}
-        required: true{{end}}
-		{{- if $param.Default }}
-        default: {{$param.Default}}{{end}}
-		{{- if $param.Description }}
-        description: {{$param.Description}}{{end}}
-		{{- if $param.Format}} 
-        type: {{ fixType $param.Format }}{{end}}
-        index: {{ index $Action.Name }}{{ end}}{{ end}}`
-
-	YAMLTemplate = `actions:` + Action
-
-	READMETemplate = `## blink-{{ .Describe.Name }}
-> {{ .Describe.Description }}
-{{range .GetActions}}
-## {{.Name }}
-* {{.Description }}
-<table>
-<caption>Action Parameters</caption>
-  <thead>
-    <tr>
-        <th>Param Name</th>
-        <th>Param Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>{{ range $name, $param := .Parameters}}
-       <tr>
-           <td>{{ $name }}</td>
-           <td>{{ $param.Description }}</td>
-       </tr>{{ end}}
-    </tr>
-  </tbody>
-</table>
-{{ end}}`
-	README = "README.md"
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 )
 
 func StringInSlice(name string, array []string) bool {
@@ -72,82 +30,26 @@ func StringInSlice(name string, array []string) bool {
 	return false
 }
 
-type Parameter struct {
-	Alias       string
-	Type        string   `yaml:"type"`
-	Description string   `yaml:"description"`
-	Placeholder string   `yaml:"placeholder"`
-	Required    bool     `yaml:"required"`
-	Default     string   `yaml:"default"`
-	Pattern     string   `yaml:"pattern"`  // optional: regex to validate in case of input component
-	Options     []string `yaml:"options"`  // optional: the option list in case of dropdown\checkbox
-	Index       int64    `yaml:"index"`    // optional: the ordinal number of the parameter in the parameter list
-	Format      string   `yaml:"format"`   // optional: format of the field for example -> type: date, format: date_epoch
-	IsMulti     bool     `yaml:"is_multi"` // optional: is this a multi-select field
-}
-
-type EnhancedAction struct {
-	Alias       string
-	Name        string               `yaml:"name"`
-	Description string               `yaml:"description"`
-	Enabled     bool                 `yaml:"enabled"`
-	EntryPoint  string               `yaml:"entry_point"`
-	Parameters  map[string]Parameter `yaml:"parameters"`
-}
-
-func newParameter(a map[string]sdkPlugin.ActionParameter) map[string]Parameter {
-	newMap := map[string]Parameter{}
-
-	for name, param := range a {
-		newMap[name] = Parameter{
-			Alias:       genAlias(name),
-			Type:        param.Type,
-			Description: param.Description,
-			Placeholder: param.Placeholder,
-			Required:    param.Required,
-			Default:     param.Default,
-			Pattern:     param.Pattern,
-			Options:     param.Options,
-			Index:       param.Index,
-			Format:      param.Format,
-			IsMulti:     param.IsMulti,
-		}
-	}
-
-	return newMap
-}
-
-func newCliAction(act sdkPlugin.Action) EnhancedAction {
-	return EnhancedAction{
-		Alias:       genAlias(act.Name),
-		Name:        act.Name,
-		Description: act.Description,
-		Enabled:     act.Enabled,
-		EntryPoint:  act.EntryPoint,
-		Parameters:  newParameter(act.Parameters),
-	}
-}
-
-// FilterMaskedParameters returns a new ParameterName with the same parameters as the masked ParameterName.
-func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, filterParameters bool) EnhancedAction {
-	newAction := newCliAction(act)
+// FilterMaskedParameters returns a new action with the same parameters as the masked action.
+func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, filterParameters bool) GeneratedAction {
+	newAction := newGeneratedAction(act)
 
 	if !filterParameters { // return the original action
 		return newAction
 	}
 
-	newParameters := map[string]Parameter{}
+	newParameters := map[string]GeneratedParameter{}
 
 	for parmName, mParam := range maskedAct.Parameters {
 		for name, parameter := range act.Parameters {
-			if name == parmName { // if the ParameterName name is also in the mask file.
+			if name == parmName { // if the action name is also in the mask file.
 				if mParam.Default == "" && len(parameter.Options) > 0 {
 					// if the parameter has options (enum) and no default,
 					// use the first element from the options.
 					parameter.Default = parameter.Options[0]
 				}
 
-				newParameters[name] = Parameter{
+				newParameters[name] = GeneratedParameter{
 					Alias:       mParam.Alias,
 					Type:        mParam.Type,
 					Description: mParam.Description,
@@ -187,7 +89,7 @@ func IsPrefix(act sdkPlugin.Action, name string) bool {
 }
 
 // GetMaskedActions gets the actions from the mask file, when filterParameters is set to false it will return all the original parameters.
-func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistParams []string, filterParameters bool) ([]EnhancedAction, error) {
+func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistParams []string, filterParameters bool) ([]GeneratedAction, error) {
 	for _, action := range actions {
 		for paramName := range action.Parameters {
 			if IsPrefix(action, paramName) || (len(blacklistParams) > 0 && StringInSlice(paramName, blacklistParams)) {
@@ -198,10 +100,10 @@ func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistPara
 
 	// mask file was not given
 	if maskFile == "" {
-		var a []EnhancedAction
+		var a []GeneratedAction
 
 		for _, action := range actions {
-			a = append(a, newCliAction(action))
+			a = append(a, newGeneratedAction(action))
 		}
 
 		return a, nil
@@ -212,7 +114,7 @@ func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistPara
 		return nil, err
 	}
 
-	var newActions []EnhancedAction
+	var newActions []GeneratedAction
 
 	for name, maskedAct := range m.Actions {
 		originalName := m.ReplaceActionAlias(name) // get the operationID
@@ -226,40 +128,54 @@ func GetMaskedActions(maskFile string, actions []sdkPlugin.Action, blacklistPara
 	return newActions, nil
 }
 
-func writeActions(actions []EnhancedAction, outputFileName string) error {
-	sort.SliceStable(actions, func(i, j int) bool { // sort the actions before writing them for consistency.
-		return actions[i].Name < actions[j].Name
+func generateCustomActionsReadme(file io.Writer, path string) {
+	currentDirectory, err := os.Getwd()
+	if err != nil {
+		log.Error(err.Error())
+		return
+	}
+	err = filepath.WalkDir(currentDirectory+path, func(filePath string, _ fs.DirEntry, err error) error {
+		if err != nil || !strings.HasSuffix(filePath, actionSuffix) {
+			return nil
+		}
+		actionFile, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			log.Error("Failed to read custom action file: " + err.Error())
+			return err
+		}
+		var action sdkPlugin.Action
+		err = yaml.Unmarshal(actionFile, &action)
+		if err != nil {
+			log.Error("Failed to unmarshal custom action: " + err.Error())
+			return err
+		}
+		err = runTemplate(file, READMEAction, action)
+		if err != nil {
+			log.Error(err.Error())
+			return err
+		}
+		return nil
 	})
-
-	f, err := os.Create(outputFileName)
 	if err != nil {
-		return err
+		log.Error("Error occurred while going over the custom actions: " + err.Error())
 	}
-	defer f.Close()
-
-	err = runTemplate(f, YAMLTemplate, actions)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
-func GenerateMaskFile(c *cli.Context) error {
+func _generateMaskFile(OpenApiFile string, maskFile string, paramBlacklist []string, outputFileName string, filter bool, warnings bool) error {
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
-		OpenApiFile: c.String("file"),
+		OpenApiFile: OpenApiFile,
 	}, plugin.Callbacks{})
 	if err != nil {
 		return err
 	}
 
-	actions, err := GetMaskedActions(c.String("mask"), apiPlugin.GetActions(), c.StringSlice("blacklist-params"), c.Bool("filterParameters"))
+	actions, err := GetMaskedActions(maskFile, apiPlugin.GetActions(), paramBlacklist, filter)
 	if err != nil {
 		return err
 	}
 
-	if !c.Bool("no-warnings") { // if warnings are enabled
-		a := fmt.Sprintf("You are about to generate [%d] actions \nwith blacklist of %q\nand use mask original mask parameters set to [%#v]\n", len(actions), c.StringSlice("blacklist-params"), c.Bool("filterParameters"))
+	if !warnings { // if warnings are enabled
+		a := fmt.Sprintf("You are about to generate [%d] actions \nwith blacklist of %q\nand use mask original mask parameters set to [%#v]\n", len(actions), paramBlacklist, filter)
 
 		fmt.Println(a)
 		prompt := promptui.Prompt{
@@ -278,8 +194,6 @@ func GenerateMaskFile(c *cli.Context) error {
 		}
 	}
 
-	outputFileName := c.String("output")
-
 	fmt.Printf("Generated [%d] actions into [%s]\n", len(actions), outputFileName)
 	err = writeActions(actions, outputFileName)
 	if err != nil {
@@ -289,20 +203,21 @@ func GenerateMaskFile(c *cli.Context) error {
 	return nil
 }
 
-func GenerateMarkdown(c *cli.Context) error {
+func _GenerateReadme(pluginName string, maskFile string, openapiFile string, customActionsPath string) error {
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
-		Name:        c.String("name"),
-		MaskFile:    c.String("mask"),
-		OpenApiFile: c.String("file"),
+		Name:        pluginName,
+		MaskFile:    maskFile,
+		OpenApiFile: openapiFile,
 	}, plugin.Callbacks{})
 	if err != nil {
 		return err
 	}
 
-	f, err := os.Create(README)
+	f, err := os.OpenFile(README, os.O_APPEND|os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
+
 	defer f.Close()
 
 	err = runTemplate(f, READMETemplate, apiPlugin)
@@ -310,12 +225,11 @@ func GenerateMarkdown(c *cli.Context) error {
 		return err
 	}
 
-	return nil
-}
+	if customActionsPath != "" {
+		generateCustomActionsReadme(f, customActionsPath)
+	}
 
-// GenerateAction appends a single ParameterName to mask file.
-func GenerateAction(c *cli.Context) error {
-	return _generateAction(c.String("name"), c.String("file"), c.String("output"), c.StringSlice("blacklist-params"), c.String("interactive"))
+	return nil
 }
 
 func _generateAction(actionName string, OpenApiFile string, outputFileName string, paramBlacklist []string, isInteractive string) error {
@@ -331,13 +245,13 @@ func _generateAction(actionName string, OpenApiFile string, outputFileName strin
 		return err
 	}
 
-	newActionPtr := FilterActionsByOperationName(actionName, apiPlugin.GetActions()) // get the specific ParameterName we want to generate.
+	newActionPtr := FilterActionsByOperationName(actionName, apiPlugin.GetActions()) // get the specific action we want to generate.
 
 	if newActionPtr == nil {
-		return errors.New("no such ParameterName")
+		return errors.New("no such action")
 	}
 
-	newAction := newCliAction(*newActionPtr)
+	newAction := newGeneratedAction(*newActionPtr)
 
 	fmt.Printf("Adding %s...\n", actionName)
 
@@ -356,14 +270,14 @@ func _generateAction(actionName string, OpenApiFile string, outputFileName strin
 	return nil
 }
 
-func InteractivelyFilterParameters(action *EnhancedAction) {
+func InteractivelyFilterParameters(action *GeneratedAction) {
 	const (
 		paramRequired = "Required"
 		paramOptional = "Optional"
 		discardParam  = "Discard"
 	)
 
-	newParameters := map[string]Parameter{}
+	newParameters := map[string]GeneratedParameter{}
 
 	templates := promptui.SelectTemplates{
 		Active:   `🍔 {{ . | green | bold }}`,
@@ -373,7 +287,7 @@ func InteractivelyFilterParameters(action *EnhancedAction) {
 
 	for name, param := range action.Parameters {
 
-		templates.Selected = `{{ "✔" | green | bold }} {{ "Parameter" | bold }} {{ "` + name + `" | bold }}: {{if eq . "` + paramRequired + `"}} {{ . | magenta }}  {{else if eq . "` + discardParam + `"}} {{ . | red }} {{else}} {{ . | cyan }} {{end}}`
+		templates.Selected = `{{ "✔" | green | bold }} {{ "GeneratedParameter" | bold }} {{ "` + name + `" | bold }}: {{if eq . "` + paramRequired + `"}} {{ . | magenta }}  {{else if eq . "` + discardParam + `"}} {{ . | red }} {{else}} {{ . | cyan }} {{end}}`
 
 		prompt := promptui.Select{
 			Label:     name,
@@ -400,12 +314,12 @@ func InteractivelyFilterParameters(action *EnhancedAction) {
 	action.Parameters = newParameters
 }
 
-// replaceOldActionWithNew filters out the old ParameterName from the actions slice, and adds the newCliAction to the end.
-func replaceOldActionWithNew(actions []EnhancedAction, newAction EnhancedAction) []EnhancedAction {
-	var NewArray []EnhancedAction
+// replaceOldActionWithNew filters out the old action from the actions slice, and adds the newGeneratedAction to the end.
+func replaceOldActionWithNew(actions []GeneratedAction, newAction GeneratedAction) []GeneratedAction {
+	var NewArray []GeneratedAction
 
 	for _, act := range actions {
-		// go over the actions and take all the actions that dont match with the new ParameterName.
+		// go over the actions and take all the actions that dont match with the new action.
 		if act.Name != newAction.Name {
 			NewArray = append(NewArray, act)
 		}
@@ -426,28 +340,23 @@ func FilterActionsByOperationName(operationName string, actions []sdkPlugin.Acti
 	return nil
 }
 
-func genAlias(str string) string {
-	upperCaseWords := []string{"url", "id", "ids", "ip", "ssl"}
+func writeActions(actions []GeneratedAction, outputFileName string) error {
+	sort.SliceStable(actions, func(i, j int) bool { // sort the actions before writing them for consistency.
+		return actions[i].Name < actions[j].Name
+	})
 
-	// replace _ with ' '
-	str = strings.ReplaceAll(str, "_", " ")
-	str = strings.ReplaceAll(str, ".", " ")
-	str = strings.ReplaceAll(str, "[]", "")
-	// iter over words in the string
+	f, err := os.Create(outputFileName)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
-	words := strings.Split(str, " ")
-
-	for i, word := range words {
-		// check if the word is in out list.
-		if plugin.StringInSlice(word, upperCaseWords) {
-			words[i] = strings.ToUpper(word)
-		}
+	err = runTemplate(f, YAMLTemplate, actions)
+	if err != nil {
+		return err
 	}
 
-	str = strings.Join(words, " ")
-	str = strings.ReplaceAll(str, "IDS", "IDs")
-
-	return strings.Join(strings.Fields(strings.Title(str)), " ")
+	return nil
 }
 
 func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
@@ -488,4 +397,25 @@ func runTemplate(f io.Writer, templateStr string, obj interface{}) error {
 	}
 
 	return nil
+}
+
+func genAlias(str string) string {
+	upperCaseWords := []string{"url", "id", "ids", "ip", "ssl"}
+	str = strings.ReplaceAll(str, "_", " ")
+	str = strings.ReplaceAll(str, ".", " ")
+	str = strings.ReplaceAll(str, "[]", "")
+
+	words := strings.Split(str, " ")
+
+	for i, word := range words {
+		// check if the word is in out list.
+		if plugin.StringInSlice(word, upperCaseWords) {
+			words[i] = strings.ToUpper(word)
+		}
+	}
+
+	str = strings.Join(words, " ")
+	str = strings.ReplaceAll(str, "IDS", "IDs")
+
+	return strings.Join(strings.Fields(strings.Title(str)), " ")
 }

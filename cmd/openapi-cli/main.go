@@ -70,11 +70,16 @@ func main() {
 								Usage:       "mask file name",
 								DefaultText: "mask.yaml",
 							},
+							&cli.StringFlag{
+								Name:    "custom-actions",
+								Aliases: []string{"ca"},
+								Usage:   "the path to the custom actions directory",
+							},
 						},
 						Name:    "readme",
 						Aliases: []string{"md", "r"},
 						Usage:   "generate readme.md for openapi plugins",
-						Action:  gen.GenerateMarkdown,
+						Action:  gen.GenerateReadme,
 					},
 					{
 						Flags: []cli.Flag{

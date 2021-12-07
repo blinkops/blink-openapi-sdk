@@ -6,10 +6,8 @@ import (
 	"testing"
 
 	"github.com/blinkops/blink-openapi-sdk/mask"
-	"github.com/blinkops/blink-sdk/plugin"
 	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
 	"github.com/stretchr/testify/suite"
-	"github.com/urfave/cli/v2"
 )
 
 type GenerateTestSuite struct {
@@ -94,13 +92,13 @@ func (suite *GenerateTestSuite) TestFilterActionsByOperationName() {
 func (suite *GenerateTestSuite) TestFilterMaskedParameters() {
 	type args struct {
 		maskedAct        *mask.MaskedAction
-		act              plugin.Action
+		act              sdkPlugin.Action
 		filterParameters bool
 	}
 	tests := []struct {
 		name string
 		args args
-		want EnhancedAction
+		want GeneratedAction
 	}{
 		// TODO: Add test cases.
 	}
@@ -108,47 +106,6 @@ func (suite *GenerateTestSuite) TestFilterMaskedParameters() {
 		suite.T().Run(tt.name, func(t *testing.T) {
 			if got := FilterMaskedParameters(tt.args.maskedAct, tt.args.act, tt.args.filterParameters); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("FilterMaskedParameters() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-
-func (suite *GenerateTestSuite) TestGenerateMarkdown() {
-	type args struct {
-		c *cli.Context
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		suite.T().Run(tt.name, func(t *testing.T) {
-			if err := GenerateMarkdown(tt.args.c); (err != nil) != tt.wantErr {
-				t.Errorf("GenerateMarkdown() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func (suite *GenerateTestSuite) TestGenerateMaskFile() {
-	type args struct {
-		c *cli.Context
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		suite.T().Run(tt.name, func(t *testing.T) {
-			if err := GenerateMaskFile(tt.args.c); (err != nil) != tt.wantErr {
-				t.Errorf("GenerateMaskFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -164,7 +121,7 @@ func (suite *GenerateTestSuite) TestGetMaskedActions() {
 	tests := []struct {
 		name    string
 		args    args
-		want    []EnhancedAction
+		want    []GeneratedAction
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -185,7 +142,7 @@ func (suite *GenerateTestSuite) TestGetMaskedActions() {
 
 func (suite *GenerateTestSuite) TestIsPrefix() {
 	type args struct {
-		act  plugin.Action
+		act  sdkPlugin.Action
 		name string
 	}
 	tests := []struct {
@@ -193,7 +150,34 @@ func (suite *GenerateTestSuite) TestIsPrefix() {
 		args args
 		want bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "No prefix",
+			args: args{
+				act: sdkPlugin.Action{
+					Parameters: map[string]sdkPlugin.ActionParameter{
+						"A": {},
+						"B": {},
+						"C": {},
+					},
+				},
+				name: "A",
+			},
+			want: false,
+		},
+		{
+			name: "Has prefix",
+			args: args{
+				act: sdkPlugin.Action{
+					Parameters: map[string]sdkPlugin.ActionParameter{
+						"A":   {},
+						"A.B": {},
+						"A.C": {},
+					},
+				},
+				name: "A",
+			},
+			want: true,
+		},
 	}
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
@@ -214,7 +198,22 @@ func (suite *GenerateTestSuite) TestStringInSlice() {
 		args args
 		want bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "not in array",
+			args: args{
+				name:  "bruh",
+				array: []string{"a", "b", "c"},
+			},
+			want: false,
+		},
+		{
+			name: "in array",
+			args: args{
+				name:  "a",
+				array: []string{"a", "b", "c"},
+			},
+			want: true,
+		},
 	}
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
@@ -226,60 +225,51 @@ func (suite *GenerateTestSuite) TestStringInSlice() {
 }
 
 func (suite *GenerateTestSuite) Test_genAlias() {
-	type args struct {
-		str string
-	}
 	tests := []struct {
 		name string
-		args args
+		str  string
 		want string
 	}{
-		// TODO: Add test cases.
+		{
+			name: "underscore",
+			str:  "team_slug",
+			want: "Team Slug",
+		},
+		{
+			name: "brackets",
+			str:  "amogus[]",
+			want: "Amogus",
+		},
+		{
+			name: "id",
+			str:  "user_id",
+			want: "User ID",
+		},
+		{
+			name: "IDs",
+			str:  "channel_ids",
+			want: "Channel IDs",
+		},
+		{
+			name: "long name",
+			str:  "bruh_bruh_bruh_bruh",
+			want: "Bruh Bruh Bruh Bruh",
+		},
+		{
+			name: "gcp like naming",
+			str:  "service.s3_lol",
+			want: "Service S3 Lol",
+		},
+		{
+			name: "upper case this",
+			str:  "url_id_ids ip_ssl",
+			want: "URL ID IDs IP SSL",
+		},
 	}
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
-			if got := genAlias(tt.args.str); got != tt.want {
+			if got := genAlias(tt.str); got != tt.want {
 				t.Errorf("genAlias() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func (suite *GenerateTestSuite) Test_newAction() {
-	type args struct {
-		act plugin.Action
-	}
-	tests := []struct {
-		name string
-		args args
-		want EnhancedAction
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		suite.T().Run(tt.name, func(t *testing.T) {
-			if got := newCliAction(tt.args.act); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("newCliAction() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func (suite *GenerateTestSuite) Test_newParameter() {
-	type args struct {
-		a map[string]sdkPlugin.ActionParameter
-	}
-	tests := []struct {
-		name string
-		args args
-		want map[string]Parameter
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		suite.T().Run(tt.name, func(t *testing.T) {
-			if got := newParameter(tt.args.a); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("newParameter() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -287,13 +277,13 @@ func (suite *GenerateTestSuite) Test_newParameter() {
 
 func (suite *GenerateTestSuite) Test_replaceOldActionWithNew() {
 	type args struct {
-		actions   []EnhancedAction
-		newAction EnhancedAction
+		actions   []GeneratedAction
+		newAction GeneratedAction
 	}
 	tests := []struct {
 		name string
 		args args
-		want []EnhancedAction
+		want []GeneratedAction
 	}{
 		// TODO: Add test cases.
 	}
@@ -307,8 +297,6 @@ func (suite *GenerateTestSuite) Test_replaceOldActionWithNew() {
 }
 
 func (suite *GenerateTestSuite) Test_runTemplate() {
-
-
 	type args struct {
 		templateStr string
 		obj         interface{}
@@ -319,8 +307,54 @@ func (suite *GenerateTestSuite) Test_runTemplate() {
 		wantF   string
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "generate mask",
+			args: args{
+				templateStr: YAMLTemplate,
+				obj: []GeneratedAction{
+					{
+						Name:  "actions_first",
+						Alias: "First",
+						Parameters: map[string]GeneratedParameter{"name": {
+							Alias:    "Name",
+							Required: true,
+							Index:    0,
+						}},
+					},
+				},
+			},
+			wantF: `actions:
+  actions_first:
+    alias: First
+    parameters:
+      name:
+        alias: "Name"
+        required: true
+        index: 1`,
+			wantErr: false,
+		},
+		{
+			name: "invalid template",
+			args: args{
+				templateStr: `{{range $Action := .}}
+  {{$Action.dsfsdf }}:`,
+				obj: []GeneratedAction{
+					{
+						Name:  "actions_first",
+						Alias: "First",
+						Parameters: map[string]GeneratedParameter{"name": {
+							Alias:    "Name",
+							Required: true,
+							Index:    0,
+						}},
+					},
+				},
+			},
+			wantF:   "",
+			wantErr: true,
+		},
 	}
+
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
 			f := &bytes.Buffer{}
@@ -331,30 +365,6 @@ func (suite *GenerateTestSuite) Test_runTemplate() {
 			}
 			if gotF := f.String(); gotF != tt.wantF {
 				t.Errorf("runTemplate() gotF = %v, want %v", gotF, tt.wantF)
-			}
-		})
-	}
-}
-
-func Test__generateAction(t *testing.T) {
-	type args struct {
-		actionName     string
-		OpenApiFile    string
-		outputFileName string
-		paramBlacklist []string
-		isInteractive  string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := _generateAction(tt.args.actionName, tt.args.OpenApiFile, tt.args.outputFileName, tt.args.paramBlacklist, tt.args.isInteractive); (err != nil) != tt.wantErr {
-				t.Errorf("_generateAction() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

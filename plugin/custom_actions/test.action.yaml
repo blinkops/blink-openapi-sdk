@@ -1,0 +1,22 @@
+name: "CreateIssue"
+description: "Adds a comment to an issue"
+enabled: true
+parameters:
+  "Summary":
+    type: "string"
+    required: true
+  "Project Key":
+    type: "string"
+    description: "The project's key."
+    required: true
+  "Description":
+    type: "string"
+    required: false
+  "Issue Type":
+    type: "string"
+    description: "The name of the type of the issue"
+    required: true
+  "Assignee Email":
+    type: "string"
+    description: "The email address of the assignee"
+    required: false
