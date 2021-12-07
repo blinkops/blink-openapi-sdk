@@ -59,7 +59,6 @@ type PluginMetadata struct {
 
 type bodyMetadata struct {
 	maskData   mask.Mask
-	schemaPath string
 	action     *plugin.Action
 }
 
@@ -404,7 +403,7 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, er
 		for _, paramBody := range operation.Bodies {
 			if paramBody.DefaultBody {
 
-				handleBodyParams(bodyMetadata{maskData, "", &action}, paramBody.Schema.OApiSchema, "", paramBody.Required)
+				handleBodyParams(bodyMetadata{maskData, &action}, paramBody.Schema.OApiSchema, "", "", paramBody.Required)
 				break
 			}
 		}
