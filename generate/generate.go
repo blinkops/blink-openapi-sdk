@@ -263,12 +263,7 @@ func GenerateMarkdown(c *cli.Context) error {
 }
 
 func generateCustomActionsReadme(file io.Writer, path string) {
-	currentDirectory, err := os.Getwd()
-	if err != nil {
-		log.Error(err.Error())
-		return
-	}
-	err = filepath.WalkDir(currentDirectory+path, func(filePath string, _ fs.DirEntry, err error) error {
+	err := filepath.WalkDir(path, func(filePath string, _ fs.DirEntry, err error) error {
 		if err != nil || !strings.HasSuffix(filePath, actionSuffix) {
 			return nil
 		}
