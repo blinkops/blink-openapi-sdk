@@ -74,6 +74,8 @@ func main() {
 								Name:    "custom-actions",
 								Aliases: []string{"ca"},
 								Usage:   "the path to the custom actions directory",
+								Value: "./custom_actions/actions",
+								DefaultText: "./custom_actions/actions",
 							},
 						},
 						Name:    "readme",
