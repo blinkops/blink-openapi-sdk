@@ -36,6 +36,7 @@ func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, paren
 		if bodyProperty.Value.Properties != nil {
 			handleBodyParams(metadata, bodyProperty.Value, fullParamPath, areParentsRequired(parentsRequired, propertyName, paramSchema))
 		} else {
+			metadata.schemaPath = ""
 			handleBodyParamOfType(metadata, bodyProperty.Value, fullParamPath, parentsRequired)
 			isParamRequired := false
 
