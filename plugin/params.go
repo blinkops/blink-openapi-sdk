@@ -13,16 +13,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, parentsRequired bool) {
-	handleBodyParamOfType(metadata, paramSchema, parentPath, parentsRequired)
+func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, schemaPath string, parentsRequired bool) {
+	handleBodyParamOfType(metadata, paramSchema, parentPath, schemaPath, parentsRequired)
 
 	for propertyName, bodyProperty := range paramSchema.Properties {
-		fullParamPath := propertyName
+		fullParamPath, fullSchemaPath := propertyName, schemaPath
 
 		if bodyProperty.Ref != "" {
 			index := strings.LastIndex(bodyProperty.Ref, "/") + 1
-			metadata.schemaPath += bodyProperty.Ref[index:] + "."
-			if hasDuplicateSchemas(metadata.schemaPath) {
+			fullSchemaPath += bodyProperty.Ref[index:] + "."
+			if hasDuplicateSchemas(fullSchemaPath) {
 				continue
 			}
 		}
@@ -34,9 +34,9 @@ func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, paren
 
 		// Keep recursion until leaf node is found
 		if bodyProperty.Value.Properties != nil {
-			handleBodyParams(metadata, bodyProperty.Value, fullParamPath, areParentsRequired(parentsRequired, propertyName, paramSchema))
+			handleBodyParams(metadata, bodyProperty.Value, fullParamPath, fullSchemaPath, areParentsRequired(parentsRequired, propertyName, paramSchema))
 		} else {
-			handleBodyParamOfType(metadata, bodyProperty.Value, fullParamPath, parentsRequired)
+			handleBodyParamOfType(metadata, bodyProperty.Value, fullParamPath, fullSchemaPath, parentsRequired)
 			isParamRequired := false
 
 			for _, requiredParam := range paramSchema.Required {
@@ -53,7 +53,7 @@ func handleBodyParams(metadata bodyMetadata, paramSchema *openapi3.Schema, paren
 	}
 }
 
-func handleBodyParamOfType(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, parentsRequired bool) {
+func handleBodyParamOfType(metadata bodyMetadata, paramSchema *openapi3.Schema, parentPath string, schemaPath string, parentsRequired bool) {
 	if paramSchema.AllOf != nil || paramSchema.AnyOf != nil || paramSchema.OneOf != nil {
 
 		allSchemas := []openapi3.SchemaRefs{paramSchema.AllOf, paramSchema.AnyOf, paramSchema.OneOf}
@@ -61,7 +61,7 @@ func handleBodyParamOfType(metadata bodyMetadata, paramSchema *openapi3.Schema, 
 		// find properties nested in Allof, Anyof, Oneof
 		for _, schemaType := range allSchemas {
 			for _, schemaParams := range schemaType {
-				handleBodyParams(metadata, schemaParams.Value, parentPath, parentsRequired)
+				handleBodyParams(metadata, schemaParams.Value, parentPath, schemaPath, parentsRequired)
 			}
 		}
 	}

@@ -440,10 +440,10 @@ func (suite *PluginTestSuite) TestExecuteAction() {
 func (suite *PluginTestSuite) TestHandleBodyParams() {
 	var schema *openapi3.Schema
 	_ = json.Unmarshal(schemaByte, &schema)
-	parentPath := ""
+	parentPath, schemaPath := "", ""
 	action := myPlugin.actions[0]
 
-	handleBodyParams(bodyMetadata{mask.Mask{}, "", &action}, schema, parentPath, true)
+	handleBodyParams(bodyMetadata{mask.Mask{}, &action}, schema, parentPath, schemaPath, true)
 
 	assert.Equal(suite.T(), 13, len(myPlugin.actions[0].Parameters))
 	assert.Contains(suite.T(), myPlugin.actions[0].Parameters, "dashboard.id")
