@@ -49,6 +49,10 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 					parameter.Default = parameter.Options[0]
 				}
 
+				if mParam.Description == "" {
+					mParam.Description = parameter.Description
+				}
+
 				newParameters[name] = GeneratedParameter{
 					Alias:       mParam.Alias,
 					Type:        mParam.Type,
@@ -67,7 +71,11 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 	}
 
 	newAction.Parameters = newParameters
-	newAction.Alias = maskedAct.Alias
+	if maskedAct.Alias != "" {
+		newAction.Alias = maskedAct.Alias
+	} else {
+		newAction.Alias = genAlias(newAction.Name)
+	}
 
 	return newAction
 }
@@ -170,12 +178,6 @@ func _generateMaskFile(OpenApiFile string, maskFile string, paramBlacklist []str
 	return nil
 }
 
-type GeneratedReadme struct {
-	Name        string
-	Description string
-	Actions     []GeneratedAction
-}
-
 func _GenerateReadme(pluginName string, maskFile string, openapiFile string, customActionsPath string) error {
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
 		OpenApiFile: openapiFile,
@@ -190,7 +192,7 @@ func _GenerateReadme(pluginName string, maskFile string, openapiFile string, cus
 		return err
 	}
 
-	a := GeneratedReadme{
+	pluginMask := GeneratedReadme{
 		Name:        apiPlugin.Describe().Name,
 		Description: apiPlugin.Describe().Description,
 		Actions:     actions,
@@ -203,19 +205,22 @@ func _GenerateReadme(pluginName string, maskFile string, openapiFile string, cus
 
 	defer f.Close()
 
-	err = runTemplate(f, READMETemplate, a)
-	if err != nil {
-		return err
+	if customActionsPath != "" {
+		pluginMask.Actions = append(pluginMask.Actions, generateCustomActionsReadme(customActionsPath)...)
 	}
 
-	if customActionsPath != "" {
-		generateCustomActionsReadme(f, customActionsPath)
+	err = runTemplate(f, READMETemplate, pluginMask)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func generateCustomActionsReadme(file io.Writer, path string) {
+func generateCustomActionsReadme(path string) []GeneratedAction {
+
+	b := []GeneratedAction{}
+
 	err := filepath.WalkDir(path, func(filePath string, _ fs.DirEntry, err error) error {
 		if err != nil || !strings.HasSuffix(filePath, actionSuffix) {
 			return nil
@@ -231,16 +236,15 @@ func generateCustomActionsReadme(file io.Writer, path string) {
 			log.Error("Failed to unmarshal custom action: " + err.Error())
 			return err
 		}
-		err = runTemplate(file, READMEAction, action)
-		if err != nil {
-			log.Error(err.Error())
-			return err
-		}
+
+		b = append(b, newGeneratedAction(action))
+
 		return nil
 	})
 	if err != nil {
 		log.Error("Error occurred while going over the custom actions: " + err.Error())
 	}
+	return b
 }
 
 // GenerateAction appends a single ParameterName to mask file.

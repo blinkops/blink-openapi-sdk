@@ -5,7 +5,7 @@ import sdkPlugin "github.com/blinkops/blink-sdk/plugin"
 const (
 	Action = `{{range $Action := .}}
   {{$Action.Name }}:
-    alias: {{ genAlias $Action.Alias }}
+    alias: {{ $Action.Alias }}
     parameters:{{ range $name, $param := .Parameters}}
       {{ if badPrefix $name }}"{{$name}}":
       {{- else }}{{$name}}:{{end}}
@@ -29,7 +29,7 @@ const (
 {{ end}}`
 
 	READMEAction = `
-## {{.Name }}
+## {{.Alias }}
 * {{.Description }}
 <table>
 <caption>Action Parameters</caption>
@@ -42,7 +42,7 @@ const (
   <tbody>
     <tr>{{ range $name, $param := .Parameters}}
        <tr>
-           <td>{{ $name }}</td>
+           <td>{{ $param.Alias }}</td>
            <td>{{ $param.Description }}</td>
        </tr>{{ end}}
     </tr>
@@ -74,6 +74,12 @@ type GeneratedAction struct {
 	Enabled     bool                          `yaml:"enabled"`
 	EntryPoint  string                        `yaml:"entry_point"`
 	Parameters  map[string]GeneratedParameter `yaml:"parameters"`
+}
+
+type GeneratedReadme struct {
+	Name        string
+	Description string
+	Actions     []GeneratedAction
 }
 
 func newGeneratedParameter(a map[string]sdkPlugin.ActionParameter) map[string]GeneratedParameter {

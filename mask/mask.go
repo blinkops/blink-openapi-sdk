@@ -24,6 +24,7 @@ type (
 	}
 	MaskedAction struct {
 		Alias       string                            `yaml:"alias,omitempty"`
+		Description string                            `yaml:"description,omitempty"`
 		Parameters  map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
 	}
 	MaskedActionParameter struct {
