@@ -23,8 +23,8 @@ type (
 		ReverseParameterAliasMap map[string]map[string]string
 	}
 	MaskedAction struct {
-		Alias      string                            `yaml:"alias,omitempty"`
-		Parameters map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
+		Alias       string                            `yaml:"alias,omitempty"`
+		Parameters  map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
 	}
 	MaskedActionParameter struct {
 		Alias       string `yaml:"alias,omitempty"`

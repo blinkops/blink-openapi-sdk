@@ -170,14 +170,30 @@ func _generateMaskFile(OpenApiFile string, maskFile string, paramBlacklist []str
 	return nil
 }
 
+type GeneratedReadme struct {
+	Name        string
+	Description string
+	Actions     []GeneratedAction
+}
+
 func _GenerateReadme(pluginName string, maskFile string, openapiFile string, customActionsPath string) error {
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
-		Name:        pluginName,
-		MaskFile:    maskFile,
 		OpenApiFile: openapiFile,
+		Name:        pluginName,
 	}, plugin.Callbacks{})
 	if err != nil {
 		return err
+	}
+
+	actions, err := GetMaskedActions(maskFile, apiPlugin.GetActions(), []string{}, true)
+	if err != nil {
+		return err
+	}
+
+	a := GeneratedReadme{
+		Name:        apiPlugin.Describe().Name,
+		Description: apiPlugin.Describe().Description,
+		Actions:     actions,
 	}
 
 	f, err := os.OpenFile(README, os.O_APPEND|os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
@@ -187,7 +203,7 @@ func _GenerateReadme(pluginName string, maskFile string, openapiFile string, cus
 
 	defer f.Close()
 
-	err = runTemplate(f, READMETemplate, apiPlugin)
+	err = runTemplate(f, READMETemplate, a)
 	if err != nil {
 		return err
 	}
@@ -198,7 +214,6 @@ func _GenerateReadme(pluginName string, maskFile string, openapiFile string, cus
 
 	return nil
 }
-
 
 func generateCustomActionsReadme(file io.Writer, path string) {
 	err := filepath.WalkDir(path, func(filePath string, _ fs.DirEntry, err error) error {

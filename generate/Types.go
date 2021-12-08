@@ -22,9 +22,9 @@ const (
 
 	YAMLTemplate = `actions:` + Action
 
-	READMETemplate = `## blink-{{ .Describe.Name }}
-> {{ .Describe.Description }}
-{{range .GetActions}}
+	READMETemplate = `## blink-{{ .Name }}
+> {{ .Description }}
+{{range .Actions}}
 ` + READMEAction + `
 {{ end}}`
 
