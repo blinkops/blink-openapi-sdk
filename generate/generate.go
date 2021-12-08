@@ -2,7 +2,6 @@ package gen
 
 import (
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
 	"html/template"
 	"io"
 	"io/fs"
@@ -12,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/AlecAivazis/survey/v2"
 
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin"
@@ -227,7 +228,6 @@ func _GenerateReadme(pluginName string, maskFile string, openapiFile string, cus
 }
 
 func generateCustomActionsReadme(path string) []GeneratedAction {
-
 	b := []GeneratedAction{}
 
 	err := filepath.WalkDir(path, func(filePath string, _ fs.DirEntry, err error) error {
@@ -296,19 +296,7 @@ func _generateAction(actionName string, OpenApiFile string, outputFileName strin
 }
 
 func InteractivelyFilterParameters(action *GeneratedAction) {
-	const (
-		paramRequired = "Required"
-		paramOptional = "Optional"
-		discardParam  = "Discard"
-	)
-
 	newParameters := []GeneratedParameter{}
-
-	//templates := promptui.SelectTemplates{
-	//	Active:   `🍔 {{ . | green | bold }}`,
-	//	Inactive: `   {{ . }}`,
-	//	Label:    `Add {{ . | blue | bold}}:`,
-	//}
 
 	paramNames := []string{}
 	for _, parameter := range action.Parameters {
@@ -343,7 +331,6 @@ func InteractivelyFilterParameters(action *GeneratedAction) {
 			}
 			newParameters = append(newParameters, parameter)
 		}
-
 	}
 
 	action.Parameters = newParameters
