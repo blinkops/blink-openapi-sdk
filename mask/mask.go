@@ -3,6 +3,7 @@ package mask
 import (
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/zip"
@@ -56,6 +57,7 @@ func ParseMask(maskFile string) (mask Mask, err error) {
 		return
 	}
 
+	rawMaskData = []byte( strings.ReplaceAll(string(rawMaskData), "\\", ""))
 	if err = yaml.Unmarshal(rawMaskData, &mask); err != nil {
 		return
 	}

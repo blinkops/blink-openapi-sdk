@@ -6,16 +6,16 @@ const (
 	Action = `{{range $Action := .}}
   {{$Action.Name }}:
     alias: {{ $Action.Alias }}
-    parameters:{{ range $name, $param := .Parameters}}
-      {{ if badPrefix $name }}"{{$name}}":
-      {{- else }}{{$name}}:{{end}}
+    parameters:{{ range $param := .Parameters}}
+      {{ if badPrefix $param.Name }}"{{$param.Name}}":
+      {{- else }}{{$param.Name}}:{{end}}
         alias: "{{ paramName $param.Alias }}"
         {{- if $param.Required }}
         required: true{{end}}
 		{{- if $param.Default }}
         default: {{$param.Default}}{{end}}
 		{{- if $param.Description }}
-        description: {{$param.Description}}{{end}}
+        description: "{{$param.Description}}"{{end}}
 		{{- if $param.Format}} 
         type: {{ fixType $param.Format }}{{end}}
         index: {{ index $Action.Name }}{{ end}}{{ end}}`
@@ -40,7 +40,7 @@ const (
     </tr>
   </thead>
   <tbody>
-    <tr>{{ range $name, $param := .Parameters}}
+    <tr>{{ range $param := .Parameters}}
        <tr>
            <td>{{ $param.Alias }}</td>
            <td>{{ $param.Description }}</td>
@@ -54,6 +54,7 @@ const (
 )
 
 type GeneratedParameter struct {
+	Name        string
 	Alias       string
 	Type        string   `yaml:"type"`
 	Description string   `yaml:"description"`
@@ -69,11 +70,11 @@ type GeneratedParameter struct {
 
 type GeneratedAction struct {
 	Alias       string
-	Name        string                        `yaml:"name"`
-	Description string                        `yaml:"description"`
-	Enabled     bool                          `yaml:"enabled"`
-	EntryPoint  string                        `yaml:"entry_point"`
-	Parameters  map[string]GeneratedParameter `yaml:"parameters"`
+	Name        string               `yaml:"name"`
+	Description string               `yaml:"description"`
+	Enabled     bool                 `yaml:"enabled"`
+	EntryPoint  string               `yaml:"entry_point"`
+	Parameters  []GeneratedParameter `yaml:"parameters"`
 }
 
 type GeneratedReadme struct {
@@ -82,11 +83,12 @@ type GeneratedReadme struct {
 	Actions     []GeneratedAction
 }
 
-func newGeneratedParameter(a map[string]sdkPlugin.ActionParameter) map[string]GeneratedParameter {
-	newMap := map[string]GeneratedParameter{}
+func newGeneratedParameter(a map[string]sdkPlugin.ActionParameter) []GeneratedParameter {
+	generatedParameters := []GeneratedParameter{}
 
 	for name, param := range a {
-		newMap[name] = GeneratedParameter{
+		generatedParameters = append(generatedParameters, GeneratedParameter{
+			Name:        name,
 			Alias:       genAlias(name),
 			Type:        param.Type,
 			Description: param.Description,
@@ -98,10 +100,10 @@ func newGeneratedParameter(a map[string]sdkPlugin.ActionParameter) map[string]Ge
 			Index:       param.Index,
 			Format:      param.Format,
 			IsMulti:     param.IsMulti,
-		}
+		})
 	}
 
-	return newMap
+	return generatedParameters
 }
 
 func newGeneratedAction(act sdkPlugin.Action) GeneratedAction {

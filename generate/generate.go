@@ -38,7 +38,7 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 		return newAction
 	}
 
-	newParameters := map[string]GeneratedParameter{}
+	newParameters := []GeneratedParameter{}
 
 	for parmName, mParam := range maskedAct.Parameters {
 		for name, parameter := range act.Parameters {
@@ -53,7 +53,8 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 					mParam.Description = parameter.Description
 				}
 
-				newParameters[name] = GeneratedParameter{
+				newParameters = append(newParameters, GeneratedParameter{
+					Name:        name,
 					Alias:       mParam.Alias,
 					Type:        mParam.Type,
 					Description: mParam.Description,
@@ -65,10 +66,14 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 					Index:       mParam.Index,
 					Format:      parameter.Format,
 					IsMulti:     mParam.IsMulti,
-				}
+				})
 			}
 		}
 	}
+
+	sort.SliceStable(newParameters, func(i, j int) bool {
+		return newParameters[i].Index < newParameters[j].Index
+	})
 
 	newAction.Parameters = newParameters
 	if maskedAct.Alias != "" {
@@ -191,6 +196,9 @@ func _GenerateReadme(pluginName string, maskFile string, openapiFile string, cus
 	if err != nil {
 		return err
 	}
+	sort.SliceStable(actions, func(i, j int) bool { // sort the actions before writing them for consistency.
+		return actions[i].Name < actions[j].Name
+	})
 
 	pluginMask := GeneratedReadme{
 		Name:        apiPlugin.Describe().Name,
@@ -293,7 +301,7 @@ func InteractivelyFilterParameters(action *GeneratedAction) {
 		discardParam  = "Discard"
 	)
 
-	newParameters := map[string]GeneratedParameter{}
+	newParameters := []GeneratedParameter{}
 
 	templates := promptui.SelectTemplates{
 		Active:   `🍔 {{ . | green | bold }}`,
@@ -301,12 +309,12 @@ func InteractivelyFilterParameters(action *GeneratedAction) {
 		Label:    `Add {{ . | blue | bold}}:`,
 	}
 
-	for name, param := range action.Parameters {
+	for _, param := range action.Parameters {
 
-		templates.Selected = `{{ "✔" | green | bold }} {{ "GeneratedParameter" | bold }} {{ "` + name + `" | bold }}: {{if eq . "` + paramRequired + `"}} {{ . | magenta }}  {{else if eq . "` + discardParam + `"}} {{ . | red }} {{else}} {{ . | cyan }} {{end}}`
+		templates.Selected = `{{ "✔" | green | bold }} {{ "GeneratedParameter" | bold }} {{ "` + param.Name + `" | bold }}: {{if eq . "` + paramRequired + `"}} {{ . | magenta }}  {{else if eq . "` + discardParam + `"}} {{ . | red }} {{else}} {{ . | cyan }} {{end}}`
 
 		prompt := promptui.Select{
-			Label:     name,
+			Label:     param.Name,
 			Templates: &templates,
 			Items:     []string{paramRequired, paramOptional, discardParam},
 		}
@@ -324,7 +332,7 @@ func InteractivelyFilterParameters(action *GeneratedAction) {
 			continue
 		}
 
-		newParameters[name] = param
+		newParameters = append(newParameters, param)
 	}
 
 	action.Parameters = newParameters
