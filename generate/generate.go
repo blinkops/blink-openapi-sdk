@@ -208,7 +208,7 @@ func _GenerateReadme(pluginName string, maskFile string, openapiFile string, cus
 		Actions:     actions,
 	}
 
-	f, err := os.OpenFile(README, os.O_APPEND|os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	f, err := os.Create(README)
 	if err != nil {
 		return err
 	}
