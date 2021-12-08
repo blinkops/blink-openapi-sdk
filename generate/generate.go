@@ -2,6 +2,7 @@ package gen
 
 import (
 	"fmt"
+	"github.com/AlecAivazis/survey/v2"
 	"html/template"
 	"io"
 	"io/fs"
@@ -15,7 +16,6 @@ import (
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin"
 	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
-	"github.com/manifoldco/promptui"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -158,18 +158,19 @@ func _generateMaskFile(OpenApiFile string, maskFile string, paramBlacklist []str
 		a := fmt.Sprintf("You are about to generate [%d] actions \nwith blacklist of %q\nand use mask original mask parameters set to [%#v]\n", len(actions), paramBlacklist, filter)
 
 		fmt.Println(a)
-		prompt := promptui.Prompt{
-			Label:     "Are you sure",
-			Default:   "Y",
-			IsConfirm: true,
+
+		prompt := &survey.Confirm{
+			Message: "Are you sure?",
 		}
 
-		result, err := prompt.Run()
+		result := false
+
+		err = survey.AskOne(prompt, &result)
 		if err != nil {
 			return err
 		}
 
-		if result == "n" {
+		if !result {
 			return errors.New("")
 		}
 	}
@@ -303,36 +304,46 @@ func InteractivelyFilterParameters(action *GeneratedAction) {
 
 	newParameters := []GeneratedParameter{}
 
-	templates := promptui.SelectTemplates{
-		Active:   `🍔 {{ . | green | bold }}`,
-		Inactive: `   {{ . }}`,
-		Label:    `Add {{ . | blue | bold}}:`,
+	//templates := promptui.SelectTemplates{
+	//	Active:   `🍔 {{ . | green | bold }}`,
+	//	Inactive: `   {{ . }}`,
+	//	Label:    `Add {{ . | blue | bold}}:`,
+	//}
+
+	paramNames := []string{}
+	for _, parameter := range action.Parameters {
+		paramNames = append(paramNames, parameter.Name)
 	}
 
-	for _, param := range action.Parameters {
+	selectedParams := []string{}
+	prompt := &survey.MultiSelect{
+		Message: "Select Parameters",
+		Options: paramNames,
+	}
+	err := survey.AskOne(prompt, &selectedParams)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-		templates.Selected = `{{ "✔" | green | bold }} {{ "GeneratedParameter" | bold }} {{ "` + param.Name + `" | bold }}: {{if eq . "` + paramRequired + `"}} {{ . | magenta }}  {{else if eq . "` + discardParam + `"}} {{ . | red }} {{else}} {{ . | cyan }} {{end}}`
+	requiredParams := []string{}
+	prompt = &survey.MultiSelect{
+		Message: "Select required Parameters",
+		Options: selectedParams,
+	}
+	err = survey.AskOne(prompt, &requiredParams)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-		prompt := promptui.Select{
-			Label:     param.Name,
-			Templates: &templates,
-			Items:     []string{paramRequired, paramOptional, discardParam},
+	for _, parameter := range action.Parameters {
+		if StringInSlice(parameter.Name, selectedParams) {
+
+			if StringInSlice(parameter.Name, requiredParams) {
+				parameter.Required = true
+			}
+			newParameters = append(newParameters, parameter)
 		}
 
-		_, result, err := prompt.Run()
-		if err != nil {
-			fmt.Printf("Prompt failed %v\n", err)
-			return
-		}
-
-		switch result {
-		case paramRequired:
-			param.Required = true
-		case discardParam:
-			continue
-		}
-
-		newParameters = append(newParameters, param)
 	}
 
 	action.Parameters = newParameters
