@@ -180,6 +180,11 @@ func (suite *PluginTestSuite) SetupSuite() {
 			Version: "1.0.0",
 		},
 		callbacks: Callbacks{ValidateResponse: validateDefault},
+		mask: mask.Mask{
+			Actions:                  map[string]*mask.MaskedAction{},
+			ReverseActionAliasMap:    map[string]string{},
+			ReverseParameterAliasMap: map[string]map[string]string{},
+		},
 	}
 }
 

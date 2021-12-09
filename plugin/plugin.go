@@ -185,7 +185,12 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	jqFilter := p.mask.Actions[p.mask.ReverseActionAliasMap[request.Name]].FilterResponseWithJQ
+	jqFilter := ""
+	if originalActName, ok := p.mask.ReverseActionAliasMap[request.Name]; ok {
+		if maskedAction, ok := p.mask.Actions[originalActName]; ok {
+			jqFilter = maskedAction.FilterResponseWithJQ
+		}
+	}
 	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.callbacks.SetCustomAuthHeaders, request.Timeout, jqFilter)
 
 	res.Result = result.Body
