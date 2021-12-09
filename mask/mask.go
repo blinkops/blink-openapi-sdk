@@ -27,6 +27,7 @@ type (
 		Alias       string                            `yaml:"alias,omitempty"`
 		Description string                            `yaml:"description,omitempty"`
 		Parameters  map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
+		FilterResponseWithJQ string `yaml:"response_filter_jq,omitempty"`
 	}
 	MaskedActionParameter struct {
 		Alias       string `yaml:"alias,omitempty"`

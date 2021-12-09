@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/blinkops/blink-sdk/plugin"
 	"github.com/blinkops/blink-sdk/plugin/connections"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/itchyny/gojq"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -58,8 +60,8 @@ type PluginMetadata struct {
 }
 
 type bodyMetadata struct {
-	maskData   mask.Mask
-	action     *plugin.Action
+	maskData mask.Mask
+	action   *plugin.Action
 }
 
 type parsedOpenApi struct {
@@ -183,7 +185,8 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 		return res, nil
 	}
 
-	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.callbacks.SetCustomAuthHeaders, request.Timeout)
+	jqFilter := p.mask.Actions[p.mask.ReverseActionAliasMap[request.Name]].FilterResponseWithJQ
+	result, err := executeRequestWithCredentials(connection, openApiRequest, p.headerValuePrefixes, p.headerAlias, p.callbacks.SetCustomAuthHeaders, request.Timeout, jqFilter)
 
 	res.Result = result.Body
 
@@ -230,10 +233,10 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 		}
 	}
 
-	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, setCustomHeaders, timeout)
+	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, setCustomHeaders, timeout, "")
 }
 
-func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, setCustomHeaders SetCustomAuthHeaders, timeout int32) (Result, error) {
+func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, setCustomHeaders SetCustomAuthHeaders, timeout int32, jqFilter string) (Result, error) {
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}
@@ -270,10 +273,44 @@ func executeRequestWithCredentials(connection map[string]interface{}, httpReques
 	result.Body, err = ioutil.ReadAll(response.Body)
 	result.StatusCode = response.StatusCode
 
+	if jqFilter != "" {
+		result.Body = filterWithJQ(result.Body, jqFilter)
+	}
+
 	log.Debug(result.Body)
 	log.Info(result.StatusCode)
 
 	return result, err
+}
+
+// filterWithJQ gets the response body and a jq query and returns the response body reformatted
+func filterWithJQ(body []byte, jq string) []byte {
+	query, err := gojq.Parse(jq)
+	if err != nil {
+		return body
+	}
+	var bodyInter interface{}
+	err = json.Unmarshal(body, &bodyInter)
+	if err != nil {
+		return body
+	}
+	iter := query.Run(bodyInter)
+	var result []byte
+	for {
+		v, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if _, ok = v.(error); ok {
+			return body
+		}
+		marshallVal, err := json.Marshal(v)
+		if err != nil {
+			return body
+		}
+		result = append(result, marshallVal...)
+	}
+	return result
 }
 
 func (p *openApiPlugin) parseActionRequest(executeActionRequest *plugin.ExecuteActionRequest) (*http.Request, error) {
