@@ -107,6 +107,11 @@ func parseActionParam(maskData mask.Mask, actionName string, paramName *string, 
 			}
 		}
 
+		// Override the description property
+		if maskedParam.Description != "" {
+			paramDescription = maskedParam.Description
+		}
+
 		if maskedParam.Index != 0 {
 			paramIndex = maskedParam.Index
 		}

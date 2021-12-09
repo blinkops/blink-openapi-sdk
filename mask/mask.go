@@ -3,6 +3,7 @@ package mask
 import (
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/blinkops/blink-openapi-sdk/consts"
 	"github.com/blinkops/blink-openapi-sdk/zip"
@@ -23,8 +24,9 @@ type (
 		ReverseParameterAliasMap map[string]map[string]string
 	}
 	MaskedAction struct {
-		Alias      string                            `yaml:"alias,omitempty"`
-		Parameters map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
+		Alias       string                            `yaml:"alias,omitempty"`
+		Description string                            `yaml:"description,omitempty"`
+		Parameters  map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
 	}
 	MaskedActionParameter struct {
 		Alias       string `yaml:"alias,omitempty"`
@@ -55,6 +57,7 @@ func ParseMask(maskFile string) (mask Mask, err error) {
 		return
 	}
 
+	rawMaskData = []byte( strings.ReplaceAll(string(rawMaskData), "\\", ""))
 	if err = yaml.Unmarshal(rawMaskData, &mask); err != nil {
 		return
 	}

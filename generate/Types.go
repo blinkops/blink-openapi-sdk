@@ -5,31 +5,31 @@ import sdkPlugin "github.com/blinkops/blink-sdk/plugin"
 const (
 	Action = `{{range $Action := .}}
   {{$Action.Name }}:
-    alias: {{ genAlias $Action.Alias }}
-    parameters:{{ range $name, $param := .Parameters}}
-      {{ if badPrefix $name }}"{{$name}}":
-      {{- else }}{{$name}}:{{end}}
+    alias: {{ $Action.Alias }}
+    parameters:{{ range $param := .Parameters}}
+      {{ if badPrefix $param.Name }}"{{$param.Name}}":
+      {{- else }}{{$param.Name}}:{{end}}
         alias: "{{ paramName $param.Alias }}"
         {{- if $param.Required }}
         required: true{{end}}
 		{{- if $param.Default }}
         default: {{$param.Default}}{{end}}
 		{{- if $param.Description }}
-        description: {{$param.Description}}{{end}}
+        description: "{{$param.Description}}"{{end}}
 		{{- if $param.Format}} 
         type: {{ fixType $param.Format }}{{end}}
         index: {{ index $Action.Name }}{{ end}}{{ end}}`
 
 	YAMLTemplate = `actions:` + Action
 
-	READMETemplate = `## blink-{{ .Describe.Name }}
-> {{ .Describe.Description }}
-{{range .GetActions}}
+	READMETemplate = `## blink-{{ .Name }}
+> {{ .Description }}
+{{range .Actions}}
 ` + READMEAction + `
 {{ end}}`
 
 	READMEAction = `
-## {{.Name }}
+## {{.Alias }}
 * {{.Description }}
 <table>
 <caption>Action Parameters</caption>
@@ -40,9 +40,9 @@ const (
     </tr>
   </thead>
   <tbody>
-    <tr>{{ range $name, $param := .Parameters}}
+    <tr>{{ range $param := .Parameters}}
        <tr>
-           <td>{{ $name }}</td>
+           <td>{{ $param.Alias }}</td>
            <td>{{ $param.Description }}</td>
        </tr>{{ end}}
     </tr>
@@ -54,6 +54,7 @@ const (
 )
 
 type GeneratedParameter struct {
+	Name        string
 	Alias       string
 	Type        string   `yaml:"type"`
 	Description string   `yaml:"description"`
@@ -69,18 +70,25 @@ type GeneratedParameter struct {
 
 type GeneratedAction struct {
 	Alias       string
-	Name        string                        `yaml:"name"`
-	Description string                        `yaml:"description"`
-	Enabled     bool                          `yaml:"enabled"`
-	EntryPoint  string                        `yaml:"entry_point"`
-	Parameters  map[string]GeneratedParameter `yaml:"parameters"`
+	Name        string               `yaml:"name"`
+	Description string               `yaml:"description"`
+	Enabled     bool                 `yaml:"enabled"`
+	EntryPoint  string               `yaml:"entry_point"`
+	Parameters  []GeneratedParameter `yaml:"parameters"`
 }
 
-func newGeneratedParameter(a map[string]sdkPlugin.ActionParameter) map[string]GeneratedParameter {
-	newMap := map[string]GeneratedParameter{}
+type GeneratedReadme struct {
+	Name        string
+	Description string
+	Actions     []GeneratedAction
+}
+
+func newGeneratedParameter(a map[string]sdkPlugin.ActionParameter) []GeneratedParameter {
+	generatedParameters := []GeneratedParameter{}
 
 	for name, param := range a {
-		newMap[name] = GeneratedParameter{
+		generatedParameters = append(generatedParameters, GeneratedParameter{
+			Name:        name,
 			Alias:       genAlias(name),
 			Type:        param.Type,
 			Description: param.Description,
@@ -92,10 +100,10 @@ func newGeneratedParameter(a map[string]sdkPlugin.ActionParameter) map[string]Ge
 			Index:       param.Index,
 			Format:      param.Format,
 			IsMulti:     param.IsMulti,
-		}
+		})
 	}
 
-	return newMap
+	return generatedParameters
 }
 
 func newGeneratedAction(act sdkPlugin.Action) GeneratedAction {

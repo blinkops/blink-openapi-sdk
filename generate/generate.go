@@ -12,10 +12,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/AlecAivazis/survey/v2"
+
 	"github.com/blinkops/blink-openapi-sdk/mask"
 	"github.com/blinkops/blink-openapi-sdk/plugin"
 	sdkPlugin "github.com/blinkops/blink-sdk/plugin"
-	"github.com/manifoldco/promptui"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -38,7 +39,7 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 		return newAction
 	}
 
-	newParameters := map[string]GeneratedParameter{}
+	newParameters := []GeneratedParameter{}
 
 	for parmName, mParam := range maskedAct.Parameters {
 		for name, parameter := range act.Parameters {
@@ -49,7 +50,12 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 					parameter.Default = parameter.Options[0]
 				}
 
-				newParameters[name] = GeneratedParameter{
+				if mParam.Description == "" {
+					mParam.Description = parameter.Description
+				}
+
+				newParameters = append(newParameters, GeneratedParameter{
+					Name:        name,
 					Alias:       mParam.Alias,
 					Type:        mParam.Type,
 					Description: mParam.Description,
@@ -61,13 +67,21 @@ func FilterMaskedParameters(maskedAct *mask.MaskedAction, act sdkPlugin.Action, 
 					Index:       mParam.Index,
 					Format:      parameter.Format,
 					IsMulti:     mParam.IsMulti,
-				}
+				})
 			}
 		}
 	}
 
+	sort.SliceStable(newParameters, func(i, j int) bool {
+		return newParameters[i].Index < newParameters[j].Index
+	})
+
 	newAction.Parameters = newParameters
-	newAction.Alias = maskedAct.Alias
+	if maskedAct.Alias != "" {
+		newAction.Alias = maskedAct.Alias
+	} else {
+		newAction.Alias = genAlias(newAction.Name)
+	}
 
 	return newAction
 }
@@ -145,18 +159,19 @@ func _generateMaskFile(OpenApiFile string, maskFile string, paramBlacklist []str
 		a := fmt.Sprintf("You are about to generate [%d] actions \nwith blacklist of %q\nand use mask original mask parameters set to [%#v]\n", len(actions), paramBlacklist, filter)
 
 		fmt.Println(a)
-		prompt := promptui.Prompt{
-			Label:     "Are you sure",
-			Default:   "Y",
-			IsConfirm: true,
+
+		prompt := &survey.Confirm{
+			Message: "Are you sure?",
 		}
 
-		result, err := prompt.Run()
+		result := false
+
+		err = survey.AskOne(prompt, &result)
 		if err != nil {
 			return err
 		}
 
-		if result == "n" {
+		if !result {
 			return errors.New("")
 		}
 	}
@@ -172,35 +187,49 @@ func _generateMaskFile(OpenApiFile string, maskFile string, paramBlacklist []str
 
 func _GenerateReadme(pluginName string, maskFile string, openapiFile string, customActionsPath string) error {
 	apiPlugin, err := plugin.NewOpenApiPlugin(nil, plugin.PluginMetadata{
-		Name:        pluginName,
-		MaskFile:    maskFile,
 		OpenApiFile: openapiFile,
+		Name:        pluginName,
 	}, plugin.Callbacks{})
 	if err != nil {
 		return err
 	}
 
-	f, err := os.OpenFile(README, os.O_APPEND|os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	actions, err := GetMaskedActions(maskFile, apiPlugin.GetActions(), []string{}, true)
+	if err != nil {
+		return err
+	}
+	sort.SliceStable(actions, func(i, j int) bool { // sort the actions before writing them for consistency.
+		return actions[i].Name < actions[j].Name
+	})
+
+	pluginMask := GeneratedReadme{
+		Name:        apiPlugin.Describe().Name,
+		Description: apiPlugin.Describe().Description,
+		Actions:     actions,
+	}
+
+	f, err := os.Create(README)
 	if err != nil {
 		return err
 	}
 
 	defer f.Close()
 
-	err = runTemplate(f, READMETemplate, apiPlugin)
-	if err != nil {
-		return err
+	if customActionsPath != "" {
+		pluginMask.Actions = append(pluginMask.Actions, generateCustomActionsReadme(customActionsPath)...)
 	}
 
-	if customActionsPath != "" {
-		generateCustomActionsReadme(f, customActionsPath)
+	err = runTemplate(f, READMETemplate, pluginMask)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
+func generateCustomActionsReadme(path string) []GeneratedAction {
+	b := []GeneratedAction{}
 
-func generateCustomActionsReadme(file io.Writer, path string) {
 	err := filepath.WalkDir(path, func(filePath string, _ fs.DirEntry, err error) error {
 		if err != nil || !strings.HasSuffix(filePath, actionSuffix) {
 			return nil
@@ -216,16 +245,15 @@ func generateCustomActionsReadme(file io.Writer, path string) {
 			log.Error("Failed to unmarshal custom action: " + err.Error())
 			return err
 		}
-		err = runTemplate(file, READMEAction, action)
-		if err != nil {
-			log.Error(err.Error())
-			return err
-		}
+
+		b = append(b, newGeneratedAction(action))
+
 		return nil
 	})
 	if err != nil {
 		log.Error("Error occurred while going over the custom actions: " + err.Error())
 	}
+	return b
 }
 
 // GenerateAction appends a single ParameterName to mask file.
@@ -268,44 +296,41 @@ func _generateAction(actionName string, OpenApiFile string, outputFileName strin
 }
 
 func InteractivelyFilterParameters(action *GeneratedAction) {
-	const (
-		paramRequired = "Required"
-		paramOptional = "Optional"
-		discardParam  = "Discard"
-	)
+	newParameters := []GeneratedParameter{}
 
-	newParameters := map[string]GeneratedParameter{}
-
-	templates := promptui.SelectTemplates{
-		Active:   `🍔 {{ . | green | bold }}`,
-		Inactive: `   {{ . }}`,
-		Label:    `Add {{ . | blue | bold}}:`,
+	paramNames := []string{}
+	for _, parameter := range action.Parameters {
+		paramNames = append(paramNames, parameter.Name)
 	}
 
-	for name, param := range action.Parameters {
+	selectedParams := []string{}
+	prompt := &survey.MultiSelect{
+		Message: "Select Parameters",
+		Options: paramNames,
+	}
+	err := survey.AskOne(prompt, &selectedParams)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-		templates.Selected = `{{ "✔" | green | bold }} {{ "GeneratedParameter" | bold }} {{ "` + name + `" | bold }}: {{if eq . "` + paramRequired + `"}} {{ . | magenta }}  {{else if eq . "` + discardParam + `"}} {{ . | red }} {{else}} {{ . | cyan }} {{end}}`
+	requiredParams := []string{}
+	prompt = &survey.MultiSelect{
+		Message: "Select required Parameters",
+		Options: selectedParams,
+	}
+	err = survey.AskOne(prompt, &requiredParams)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-		prompt := promptui.Select{
-			Label:     name,
-			Templates: &templates,
-			Items:     []string{paramRequired, paramOptional, discardParam},
+	for _, parameter := range action.Parameters {
+		if StringInSlice(parameter.Name, selectedParams) {
+
+			if StringInSlice(parameter.Name, requiredParams) {
+				parameter.Required = true
+			}
+			newParameters = append(newParameters, parameter)
 		}
-
-		_, result, err := prompt.Run()
-		if err != nil {
-			fmt.Printf("Prompt failed %v\n", err)
-			return
-		}
-
-		switch result {
-		case paramRequired:
-			param.Required = true
-		case discardParam:
-			continue
-		}
-
-		newParameters[name] = param
 	}
 
 	action.Parameters = newParameters

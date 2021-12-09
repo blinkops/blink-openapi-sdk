@@ -315,7 +315,8 @@ func (suite *GenerateTestSuite) Test_runTemplate() {
 					{
 						Name:  "actions_first",
 						Alias: "First",
-						Parameters: map[string]GeneratedParameter{"name": {
+						Parameters: []GeneratedParameter{{
+							Name:     "name",
 							Alias:    "Name",
 							Required: true,
 							Index:    0,
@@ -342,7 +343,8 @@ func (suite *GenerateTestSuite) Test_runTemplate() {
 					{
 						Name:  "actions_first",
 						Alias: "First",
-						Parameters: map[string]GeneratedParameter{"name": {
+						Parameters: []GeneratedParameter{{
+							Name:     "name",
 							Alias:    "Name",
 							Required: true,
 							Index:    0,
