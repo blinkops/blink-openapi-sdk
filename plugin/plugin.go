@@ -115,12 +115,14 @@ func NewOpenApiPlugin(connectionTypes map[string]connections.Connection, meta Pl
 	}
 
 	var customActions []plugin.Action
-	if len(callbacks.CustomActions.Actions) > 0 {
+
+	if len(callbacks.CustomActions.Actions) > 0 || len(callbacks.CustomActions.ActionsWithRequestUrl) > 0 {
 		customActions = callbacks.CustomActions.GetActions()
 		if hasDuplicateActions(parsedFile.actions, customActions) {
 			panic("One or more custom action has the same name as an openapi action")
 		}
 	}
+
 	actions := append(customActions, parsedFile.actions...)
 
 	return &openApiPlugin{
