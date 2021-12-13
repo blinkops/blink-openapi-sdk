@@ -16,10 +16,13 @@ import (
 )
 
 type ActionHandler func(*plugin.ActionContext, *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error)
+type ActionHandlerWithRequestUrl func(*plugin.ActionContext, *plugin.ExecuteActionRequest, string) (*plugin.ExecuteActionResponse, error)
 
 type CustomActions struct {
-	Actions           map[string]ActionHandler
-	ActionsFolderPath string
+	Actions               map[string]ActionHandler
+	ActionsWithRequestUrl map[string]ActionHandlerWithRequestUrl
+	ActionsFolderPath     string
+	RequestUrl            string
 }
 
 func (c CustomActions) GetActions() []plugin.Action {
@@ -54,7 +57,11 @@ func (c CustomActions) Execute(actionContext *plugin.ActionContext, request *plu
 		return nil, fmt.Errorf("custom action not found")
 	}
 
-	return c.Actions[request.Name](actionContext, request)
+	if c.RequestUrl == "" {
+		return c.Actions[request.Name](actionContext, request)
+	} else {
+		return c.ActionsWithRequestUrl[request.Name](actionContext, request, c.RequestUrl)
+	}
 }
 
 func unzipCustomActions(rootPath string) {

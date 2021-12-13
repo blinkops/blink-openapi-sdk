@@ -58,8 +58,8 @@ type PluginMetadata struct {
 }
 
 type bodyMetadata struct {
-	maskData   mask.Mask
-	action     *plugin.Action
+	maskData mask.Mask
+	action   *plugin.Action
 }
 
 type parsedOpenApi struct {
@@ -158,6 +158,8 @@ func isConnectionMandatory() bool {
 
 func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, request *plugin.ExecuteActionRequest) (*plugin.ExecuteActionResponse, error) {
 	if p.callbacks.CustomActions.HasAction(request.Name) {
+		p.callbacks.CustomActions.RequestUrl = p.requestUrl
+
 		return p.callbacks.CustomActions.Execute(actionContext, request)
 	}
 	connection, err := GetCredentials(actionContext, p.Describe().Provider)
