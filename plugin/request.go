@@ -98,7 +98,7 @@ func parseBodyParams(requestParameters map[string]string, operation *handlers.Op
 		values := url.Values{}
 		// add the values
 		for paramName, paramValue := range requestBody {
-			values.Add(paramName, paramValue.(string))
+			values.Add(paramName, fmt.Sprintf("%v", paramValue))
 		}
 
 		// url encoded the values and add to the body.
