@@ -249,9 +249,9 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 					},
 					Header: map[string][]string{"Authorization": {"test1", "test2"}},
 				},
-				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"},
+				cns: connections.ConnectionInstance{Name: "test", Id: "lewl"},
 			},
-			wantErr: "connection with some-bad-provider is missing in action context",
+			wantErr: "connection for some-bad-provider is required for execution, but was not found",
 		},
 		{
 			name: "sad path: no such host",
@@ -265,7 +265,7 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 					},
 					Header: map[string][]string{"Authorization": {"test1", "test2"}},
 				},
-				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"},
+				cns: connections.ConnectionInstance{Name: "test", Id: "lewl"},
 			},
 			wantErr: "no such host",
 		},
@@ -281,7 +281,7 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 					},
 					Header: map[string][]string{"Authorization": {"test1", "test2"}},
 				},
-				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"},
+				cns: connections.ConnectionInstance{Name: "test", Id: "lewl"},
 			},
 			wantErr: "server gave HTTP response to HTTPS client",
 		},
@@ -297,7 +297,7 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 					},
 					Header: map[string][]string{"Authorization": {"test1", "test2"}},
 				},
-				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"},
+				cns: connections.ConnectionInstance{Name: "test", Id: "lewl"},
 			},
 			wantErr: "",
 		},
@@ -313,7 +313,7 @@ func (suite *PluginTestSuite) TestExecuteRequest() {
 					},
 					Header: map[string][]string{"Authorization": {"test1", "test2"}},
 				},
-				cns: connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"},
+				cns: connections.ConnectionInstance{Name: "test", Id: "lewl"},
 			},
 			wantErr: "",
 		},
@@ -349,7 +349,7 @@ func (suite *PluginTestSuite) TestParseActionRequest() {
 	defer func() { testServer.Close() }()
 
 	cns := map[string]*connections.ConnectionInstance{}
-	cns["test"] = &connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}
+	cns["test"] = &connections.ConnectionInstance{Name: "test", Id: "lewl"}
 
 	// handlers.DefineOperations populates a global variable (OperationDefinitions) that is REQUIRED for this run.
 	// The only convenient option for populating this var is to load an api from file
@@ -427,7 +427,7 @@ func (suite *PluginTestSuite) TestExecuteAction() {
 	defer testServer.Listener.Close()
 	defer func() { testServer.Close() }()
 	cns := map[string]*connections.ConnectionInstance{}
-	cns["test"] = &connections.ConnectionInstance{VaultUrl: testServer.URL, Name: "test", Id: "lewl", Token: "1234"}
+	cns["test"] = &connections.ConnectionInstance{Name: "test", Id: "lewl"}
 	ctx := plugin_sdk.NewActionContext(map[string]interface{}{}, cns)
 
 	executeActionRequest := &plugin_sdk.ExecuteActionRequest{Name: "InviteOrgMember", Parameters: map[string]string{"name": "123"}}
