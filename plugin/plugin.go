@@ -315,7 +315,7 @@ func (p *openApiPlugin) parseActionRequest(executeActionRequest *plugin.ExecuteA
 		}
 	}
 
-	if operation.Method == http.MethodPost || operation.Method == http.MethodPut || operation.Method == http.MethodPatch {
+	if operation.Method == http.MethodPost || operation.Method == http.MethodPut || operation.Method == http.MethodPatch || operation.Method == http.MethodDelete {
 		bodyType := operation.GetDefaultBodyType()
 
 		if bodyType != "" {
