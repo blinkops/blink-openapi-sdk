@@ -30,7 +30,7 @@ type (
 	HeaderAlias          map[string]string
 	PathParams           []string
 	JSONMap              interface{}
-	SetCustomAuthHeaders func(connection map[string]interface{}, request *http.Request) error
+	SetCustomAuthHeaders func(connection map[string]string, request *http.Request) error
 	Result               struct {
 		StatusCode int
 		Body       []byte
@@ -58,8 +58,8 @@ type PluginMetadata struct {
 }
 
 type bodyMetadata struct {
-	maskData   mask.Mask
-	action     *plugin.Action
+	maskData mask.Mask
+	action   *plugin.Action
 }
 
 type parsedOpenApi struct {
@@ -233,7 +233,7 @@ func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Reque
 	return executeRequestWithCredentials(connection, httpRequest, headerValuePrefixes, headerAlias, setCustomHeaders, timeout)
 }
 
-func executeRequestWithCredentials(connection map[string]interface{}, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, setCustomHeaders SetCustomAuthHeaders, timeout int32) (Result, error) {
+func executeRequestWithCredentials(connection map[string]string, httpRequest *http.Request, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, setCustomHeaders SetCustomAuthHeaders, timeout int32) (Result, error) {
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}

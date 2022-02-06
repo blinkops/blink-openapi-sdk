@@ -176,38 +176,37 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 }
 
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
-func setAuthenticationHeaders(securityHeaders map[string]interface{}, request *http.Request, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
+func setAuthenticationHeaders(securityHeaders map[string]string, request *http.Request, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
 	headers := make(map[string]string)
 	for header, headerValue := range securityHeaders {
-		if headerValueString, ok := headerValue.(string); ok {
-			header = strings.ToUpper(header)
-			// if the header is in our alias map replace it with the value in the map
-			// TOKEN -> AUTHORIZATION
-			if val, ok := headerAlias[header]; ok {
-				header = strings.ToUpper(val)
-			}
-
-			// we want to help the user by adding prefixes he might have missed
-			// for example:   Bearer <TOKEN>
-			if val, ok := prefixes[header]; ok {
-				if !strings.HasPrefix(headerValueString, val) { // check what prefix the user doesn't have
-					// add the prefix
-					headerValueString = val + headerValueString
-				}
-			}
-
-			// If the user supplied BOTH username and password
-			// Username:Password pair should be base64 encoded
-			// and sent as "Authorization: base64(user:pass)"
-			headers[header] = headerValueString
-			if username, ok := headers[consts.BasicAuthUsername]; ok {
-				if password, ok := headers[consts.BasicAuthPassword]; ok {
-					header, headerValueString = "Authorization", constructBasicAuthHeader(username, password)
-					cleanRedundantHeaders(&request.Header)
-				}
-			}
-			request.Header.Set(header, headerValueString)
+		header = strings.ToUpper(header)
+		// if the header is in our alias map replace it with the value in the map
+		// TOKEN -> AUTHORIZATION
+		if val, ok := headerAlias[header]; ok {
+			header = strings.ToUpper(val)
 		}
+
+		// we want to help the user by adding prefixes he might have missed
+		// for example:   Bearer <TOKEN>
+		if val, ok := prefixes[header]; ok {
+			if !strings.HasPrefix(headerValue, val) { // check what prefix the user doesn't have
+				// add the prefix
+				headerValue = val + headerValue
+			}
+		}
+
+		// If the user supplied BOTH username and password
+		// Username:Password pair should be base64 encoded
+		// and sent as "Authorization: base64(user:pass)"
+		headers[header] = headerValue
+		if username, ok := headers[consts.BasicAuthUsername]; ok {
+			if password, ok := headers[consts.BasicAuthPassword]; ok {
+				header, headerValue = "Authorization", constructBasicAuthHeader(username, password)
+				cleanRedundantHeaders(&request.Header)
+			}
+		}
+		request.Header.Set(header, headerValue)
+
 	}
 	return nil
 }
@@ -223,8 +222,8 @@ func cleanRedundantHeaders(requestHeaders *http.Header) {
 	requestHeaders.Del(consts.BasicAuthPassword)
 }
 
-func getRequestUrlFromConnection(requestUrl string, connection map[string]interface{}) string {
-	if explicitRequestUrl, ok := connection[consts.RequestUrlKey].(string); ok && len(explicitRequestUrl) > 0 {
+func getRequestUrlFromConnection(requestUrl string, connection map[string]string) string {
+	if explicitRequestUrl, ok := connection[consts.RequestUrlKey]; ok && len(explicitRequestUrl) > 0 {
 		requestUrl = explicitRequestUrl
 	}
 	return requestUrl
@@ -232,7 +231,7 @@ func getRequestUrlFromConnection(requestUrl string, connection map[string]interf
 
 // GetCredentials gets the credentials from vault and returns it.
 // it's exported to allow plugins who use custom actions to use it
-func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[string]interface{}, error) {
+func GetCredentials(actionContext *plugin.ActionContext, provider string) (map[string]string, error) {
 	connection, err := actionContext.GetCredentials(provider)
 	if err != nil {
 		return nil, err
