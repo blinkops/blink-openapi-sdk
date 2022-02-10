@@ -178,6 +178,11 @@ func castBodyParamType(paramValue string, paramType string) interface{} {
 // SetAuthenticationHeaders Credentials should be saved as headerName -> value according to the api definition
 func setAuthenticationHeaders(securityHeaders map[string]string, request *http.Request, prefixes HeaderValuePrefixes, headerAlias HeaderAlias) error {
 	headers := make(map[string]string)
+
+	// Remove request url and leave only other authentication headers
+	// We don't want to parse the URL with request params
+	delete(securityHeaders, consts.RequestUrlKey)
+
 	for header, headerValue := range securityHeaders {
 		header = strings.ToUpper(header)
 		// if the header is in our alias map replace it with the value in the map
