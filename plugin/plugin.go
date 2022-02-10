@@ -214,11 +214,8 @@ func fixRequestURL(r *http.Request) error {
 // ExecuteRequest is used by the 'validate' method in most openapi plugins.
 func ExecuteRequest(actionContext *plugin.ActionContext, httpRequest *http.Request, providerName string, headerValuePrefixes HeaderValuePrefixes, headerAlias HeaderAlias, timeout int32, setCustomHeaders SetCustomAuthHeaders) (Result, error) {
 	connection, err := GetCredentials(actionContext, providerName)
-	// Remove request url and leave only other authentication headers
-	// We don't want to parse the URL with request params
-	delete(connection, consts.RequestUrlKey)
-	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
 
+	// Sometimes it's fine when there's no connection (like github public repos) so we will not return an error
 	if err != nil {
 		if isConnectionMandatory() {
 			return Result{
@@ -365,6 +362,7 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, er
 
 	for _, operation := range handlers.OperationDefinitions {
 		actionName := operation.OperationId
+		displayName := ""
 
 		// Skip masked actions
 		if maskData.Actions != nil {
@@ -374,11 +372,15 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, er
 				if maskedAction.Alias != "" {
 					actionName = maskedAction.Alias
 				}
+				if maskedAction.DisplayName != "" {
+					displayName = maskedAction.DisplayName
+				}
 			}
 		}
 
 		action := plugin.Action{
 			Name:        actionName,
+			DisplayName: displayName,
 			Description: operation.Summary,
 			Enabled:     true,
 			EntryPoint:  operation.Path,
