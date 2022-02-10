@@ -25,6 +25,7 @@ type (
 	}
 	MaskedAction struct {
 		Alias       string                            `yaml:"alias,omitempty"`
+		DisplayName string                            `yaml:"display_name"`
 		Description string                            `yaml:"description,omitempty"`
 		Parameters  map[string]*MaskedActionParameter `yaml:"parameters,omitempty"`
 	}
@@ -57,7 +58,7 @@ func ParseMask(maskFile string) (mask Mask, err error) {
 		return
 	}
 
-	rawMaskData = []byte( strings.ReplaceAll(string(rawMaskData), "\\", ""))
+	rawMaskData = []byte(strings.ReplaceAll(string(rawMaskData), "\\", ""))
 	if err = yaml.Unmarshal(rawMaskData, &mask); err != nil {
 		return
 	}

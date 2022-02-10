@@ -365,6 +365,7 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, er
 
 	for _, operation := range handlers.OperationDefinitions {
 		actionName := operation.OperationId
+		displayName := ""
 
 		// Skip masked actions
 		if maskData.Actions != nil {
@@ -374,11 +375,15 @@ func parseOpenApiFile(maskData mask.Mask, OpenApiFile string) (parsedOpenApi, er
 				if maskedAction.Alias != "" {
 					actionName = maskedAction.Alias
 				}
+				if maskedAction.DisplayName != "" {
+					displayName = maskedAction.DisplayName
+				}
 			}
 		}
 
 		action := plugin.Action{
 			Name:        actionName,
+			DisplayName: displayName,
 			Description: operation.Summary,
 			Enabled:     true,
 			EntryPoint:  operation.Path,
