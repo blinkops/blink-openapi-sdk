@@ -162,11 +162,8 @@ func (p *openApiPlugin) ExecuteAction(actionContext *plugin.ActionContext, reque
 	}
 	connection, err := GetCredentials(actionContext, p.Describe().Provider)
 	p.requestUrl = getRequestUrlFromConnection(p.requestUrl, connection)
-	// Remove request url and leave only other authentication headers
-	// We don't want to parse the URL with request params
-	delete(connection, consts.RequestUrlKey)
-	// Sometimes it's fine when there's no connection (like GitHub public repos) so we will not return an error
 
+	// Sometimes it's fine when there's no connection (like GitHub public repos) so we will not return an error
 	if err != nil {
 		if isConnectionMandatory() {
 			return nil, err
