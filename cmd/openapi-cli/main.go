@@ -39,7 +39,6 @@ func main() {
 	OpenAPIFile, err := getOpenapiDefaultFile()
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
 	}
 
 	app := &cli.App{
@@ -71,10 +70,10 @@ func main() {
 								DefaultText: "mask.yaml",
 							},
 							&cli.StringFlag{
-								Name:    "custom-actions",
-								Aliases: []string{"ca"},
-								Usage:   "the path to the custom actions directory",
-								Value: "./custom_actions/actions",
+								Name:        "custom-actions",
+								Aliases:     []string{"ca"},
+								Usage:       "the path to the custom actions directory",
+								Value:       "./custom_actions/actions",
 								DefaultText: "./custom_actions/actions",
 							},
 						},
@@ -169,6 +168,20 @@ func main() {
 						Action:  gen.GenerateAction,
 					},
 				},
+			},
+			{
+				Name:    "fix-mask",
+				Aliases: []string{"fm"},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "path",
+						Aliases: []string{"p"},
+						Value:   "mask.yaml",
+						Usage:   "mask file path",
+					},
+				},
+				Usage:  "fix mask file with nested params separated by . to be separated by __",
+				Action: gen.FixMask,
 			},
 		},
 	}

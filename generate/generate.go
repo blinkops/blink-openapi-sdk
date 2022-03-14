@@ -295,6 +295,35 @@ func _generateAction(actionName string, OpenApiFile string, outputFileName strin
 	return nil
 }
 
+func _fixMask(path string) error {
+	mask, err := mask.ParseMask(path)
+	if err != nil {
+		return err
+	}
+
+	for _, action := range mask.Actions {
+		for paramName, param := range action.Parameters {
+			if strings.Contains(paramName, ".") {
+				delete(action.Parameters, paramName)
+				newParamName := strings.ReplaceAll(paramName, ".", "__")
+				action.Parameters[newParamName] = param
+			}
+		}
+	}
+
+	maskContent, err := yaml.Marshal(mask)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(path, maskContent, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func InteractivelyFilterParameters(action *GeneratedAction) {
 	newParameters := []GeneratedParameter{}
 

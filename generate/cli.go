@@ -31,3 +31,8 @@ func GenerateAction(c *cli.Context) error {
 		c.StringSlice("blacklist-params"),
 		c.String("interactive"))
 }
+
+func FixMask(c *cli.Context) error {
+	return _fixMask(
+		c.String("path"))
+}
