@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/AlecAivazis/survey/v2"
 
@@ -301,7 +302,11 @@ func _fixMask(path string) error {
 		return err
 	}
 
-	for _, action := range mask.Actions {
+	for actionName, action := range mask.Actions {
+		if action.DisplayName == "" {
+			cleanActionName := getDisplayName(actionName)
+			fmt.Println(cleanActionName)
+		}
 		for paramName, param := range action.Parameters {
 			if strings.Contains(paramName, ".") {
 				delete(action.Parameters, paramName)
@@ -322,6 +327,68 @@ func _fixMask(path string) error {
 	}
 
 	return nil
+}
+
+func contains(list []string, word string) bool {
+	for _, item := range list {
+		if item == word {
+			return true
+		}
+	}
+	return false
+}
+
+func remove(slice []string, i int) []string {
+	return append(slice[:i], slice[i+1:]...)
+}
+
+func removeDuplicates(words []string) []string {
+	if len(words) > 3 {
+		if strings.ToLower(words[0] + words[1]) == strings.ToLower(words[2]) {
+			words = remove(words, 2)
+		}
+	}
+
+	if len(words) > 4 {
+		var indexesToDelete []int
+		for i := 0; i+3 < len(words); i++ {
+			if strings.ToLower(words[i]+words[i+1]) == strings.ToLower(words[i+2]+words[i+3]) {
+				indexesToDelete = append(indexesToDelete, []int{i, i+1}...)
+			}
+		}
+
+		for i, indexToDelete := range indexesToDelete {
+			indexToDelete = indexToDelete - i
+			words = remove(words, indexToDelete)
+		}
+	}
+
+	return words
+}
+
+func getDisplayName(name string) string {
+	name = strings.ReplaceAll(name, "_", " ")
+	name = strings.ReplaceAll(name, ".", " ")
+	name = strings.ReplaceAll(name, ":", " ")
+	name = strings.ReplaceAll(name, "[]", "")
+	for i := 1; i < len(name); i++ {
+		if unicode.IsLower(rune(name[i-1])) && unicode.IsUpper(rune(name[i])) && (i+1 < len(name) || !unicode.IsUpper(rune(name[i+1]))) {
+			name = name[:i] + " " + name[i:]
+		}
+	}
+	upperCaseWords := []string{"url", "id", "ids", "ip", "ssl"}
+	words := strings.Split(name, " ")
+	for i, word := range words {
+		if contains(upperCaseWords, word) {
+			words[i] = strings.ToUpper(word)
+		}
+	}
+
+	words = removeDuplicates(words)
+
+	name = strings.Join(words, " ")
+	name = strings.ReplaceAll(name, "IDS", "IDs")
+	return strings.Join(strings.Fields(strings.Title(name)), " ")
 }
 
 func InteractivelyFilterParameters(action *GeneratedAction) {

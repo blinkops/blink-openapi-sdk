@@ -180,7 +180,7 @@ func main() {
 						Usage:   "mask file path",
 					},
 				},
-				Usage:  "fix mask file with nested params separated by . to be separated by __",
+				Usage:  "fix mask file with nested params separated by . to be separated by __ and add action display names",
 				Action: gen.FixMask,
 			},
 		},
