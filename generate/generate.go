@@ -304,8 +304,7 @@ func _fixMask(path string) error {
 
 	for actionName, action := range mask.Actions {
 		if action.DisplayName == "" {
-			cleanActionName := getDisplayName(actionName)
-			fmt.Println(cleanActionName)
+			action.DisplayName = getDisplayName(actionName)
 		}
 		for paramName, param := range action.Parameters {
 			if strings.Contains(paramName, ".") {
